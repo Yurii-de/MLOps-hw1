@@ -1,52 +1,40 @@
-# ML API Service
+# ML API Service - MLOps Homework 1
 
-> 🚀 **Начните с [START_HERE.md](START_HERE.md)** - главная инструкция для начала работы!
+Machine Learning API service with REST endpoints, JWT authentication, and model management.
 
-## 👥 Состав группы
-- **Студент 1**: [ФИО студента 1] - REST API, Models, Git Setup
-- **Студент 2**: [ФИО студента 2] - gRPC API, Dashboard, Examples
+## 🎯 Features
 
----
-
-## 📚 Документация
-
-Перед началом работы **обязательно прочитайте:**
-
-1. **[START_HERE.md](START_HERE.md)** ⭐ - НАЧНИТЕ ЗДЕСЬ!
-2. **[docs/GIT_SETUP.md](docs/GIT_SETUP.md)** - Первоначальная настройка Git
-3. **[docs/GIT_WORKFLOW.md](docs/GIT_WORKFLOW.md)** - Работа с Git и GitHub
-4. **[docs/TASK_DISTRIBUTION.md](docs/TASK_DISTRIBUTION.md)** - Распределение задач
-5. **[docs/QUICKSTART.md](docs/QUICKSTART.md)** - Быстрый старт
-6. **[CHEATSHEET.md](CHEATSHEET.md)** - Шпаргалка с командами
-7. **[PROJECT_SUMMARY.md](PROJECT_SUMMARY.md)** - Резюме проекта
-8. **[docs/AUTHENTICATION.md](docs/AUTHENTICATION.md)** ⭐ - Руководство по аутентификации
+- ✅ **ML Models**: RandomForest, LogisticRegression
+- ✅ **REST API**: 10 endpoints (FastAPI)
+- ✅ **JWT Authentication**: Secure API access
+- ✅ **Model Management**: Train, predict, retrain, delete
+- ✅ **Tests**: pytest coverage
+- ✅ **Swagger UI**: Interactive API docs
 
 ---
 
-## 🔐 Аутентификация (+2 балла)
+## 🔐 Authentication
 
-Проект поддерживает **JWT аутентификацию** для защиты всех API endpoints.
+Project uses **JWT Bearer tokens** for API protection.
 
-### Предустановленные пользователи:
+### Pre-configured users:
 
 | Username | Password |
 |----------|----------|
 | `admin` | `admin123` |
 | `user` | `user123` |
 
-### Быстрый пример:
+### Quick example:
 
 ```bash
-# 1. Получить токен
+# 1. Get token
 curl -X POST http://localhost:8000/auth/login \
   -d "username=admin&password=admin123"
 
-# 2. Использовать токен
-curl -X GET http://localhost:8000/models \
+# 2. Use token in requests
+curl http://localhost:8000/models \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
-
-**Подробнее**: [docs/AUTHENTICATION.md](docs/AUTHENTICATION.md)
 
 ---
 
@@ -59,77 +47,48 @@ curl -X GET http://localhost:8000/models \
 - Взаимодействовать через REST API, gRPC и веб-интерфейс
 
 ## Поддерживаемые модели
+---
 
-1. **RandomForest** - Random Forest Classifier
-   - Гиперпараметры: n_estimators, max_depth, min_samples_split, random_state
+## 📦 Installation
 
-2. **LogisticRegression** - Logistic Regression Classifier
-   - Гиперпараметры: C, max_iter, solver, random_state
-
-## Требования
-
-- Python 3.9+
-- Poetry для управления зависимостями
-
-## Установка
-
-1. Клонируйте репозиторий:
+1. Clone repository:
 ```bash
-git clone <repository-url>
+git clone https://github.com/Yurii-de/MLOps-hw1.git
 cd mo
 ```
 
-2. Установите зависимости с помощью Poetry:
+2. Install dependencies with Poetry:
 ```bash
 poetry install
-```
-
-3. Активируйте виртуальное окружение:
-```bash
 poetry shell
 ```
 
-## Запуск сервисов
+---
+
+## 🚀 Running
 
 ### REST API
 
-Запустите FastAPI сервер:
 ```bash
-poetry run uvicorn src.api.rest_api:app --host 0.0.0.0 --port 8000 --reload
+poetry run uvicorn src.api.rest_api:app --reload
 ```
 
-API будет доступен по адресу: `http://localhost:8000`
-Swagger документация: `http://localhost:8000/docs`
+- API: `http://localhost:8000`
+- Swagger docs: `http://localhost:8000/docs`
 
-### gRPC API
+---
 
-Запустите gRPC сервер:
-```bash
-poetry run python src/api/grpc_server.py
-```
-
-gRPC сервер будет работать на порту 50051.
-
-### Streamlit Dashboard
-
-Запустите интерактивный дашборд:
-```bash
-poetry run streamlit run src/dashboard/app.py
-```
-
-Дашборд будет доступен по адресу: `http://localhost:8501`
-
-## REST API Endpoints
+## 📋 REST API Endpoints
 
 ### Authentication
-- `POST /auth/register` - Регистрация нового пользователя
-- `POST /auth/login` - Вход и получение JWT токена
-- `GET /auth/me` - Информация о текущем пользователе
+- `POST /auth/register` - Register new user
+- `POST /auth/login` - Login and get JWT token
+- `GET /auth/me` - Get current user info
 
 ### Health Check
-- `GET /health` - Проверка статуса сервиса (без аутентификации)
+- `GET /health` - Service status (no auth required)
 
-### Models Management (требуется аутентификация)
+### Models Management (authentication required)
 - `GET /models` - Получить список доступных типов моделей
 - `GET /models/trained` - Получить список обученных моделей
 - `POST /models/train` - Обучить новую модель
@@ -158,100 +117,95 @@ poetry run python examples/grpc_client.py
 Или откройте ноутбук:
 ```bash
 poetry run jupyter notebook examples/grpc_client.ipynb
-```
+- `GET /models` - List available model types
+- `GET /models/trained` - List all trained models
+- `POST /models/train` - Train new model
+- `POST /models/{model_name}/predict` - Get predictions
+- `POST /models/{model_name}/retrain` - Retrain existing model
+- `DELETE /models/{model_name}` - Delete model
 
-## Примеры использования
+---
 
-### REST API (curl)
+## 💡 Usage Examples
 
-Обучение модели:
+### Train a model:
 ```bash
-curl -X POST "http://localhost:8000/models/train" \
+# 1. Login and get token
+TOKEN=$(curl -X POST http://localhost:8000/auth/login \
+  -d "username=admin&password=admin123" | jq -r '.access_token')
+
+# 2. Train RandomForest
+curl -X POST http://localhost:8000/models/train \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "model_type": "RandomForest",
-    "model_name": "my_rf_model",
-    "hyperparameters": {
-      "n_estimators": 100,
-      "max_depth": 10
-    },
+    "model_name": "my_model",
+    "hyperparameters": {"n_estimators": 100, "max_depth": 10},
     "train_data": {
-      "features": [[1, 2], [3, 4], [5, 6]],
+      "features": [[1,2], [3,4], [5,6]],
       "labels": [0, 1, 0]
     }
   }'
 ```
 
-Получение предсказания:
+### Get predictions:
 ```bash
-curl -X POST "http://localhost:8000/models/my_rf_model/predict" \
+curl -X POST http://localhost:8000/models/my_model/predict \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{
-    "features": [[2, 3], [4, 5]]
-  }'
+  -d '{"features": [[2,3], [4,5]]}'
 ```
 
-## Проверка кода
+---
 
-Запустите проверку стиля кода:
+## 🧪 Testing
+
+Run tests:
 ```bash
-poetry run ruff check .
+poetry run pytest tests/ -v
 ```
 
-Автоматическое исправление:
-```bash
-poetry run ruff check --fix .
-```
+---
 
-## Тестирование
-
-Запустите тесты:
-```bash
-poetry run pytest
-```
-
-## Структура проекта
+## 📁 Project Structure
 
 ```
 mo/
 ├── src/
-│   ├── __init__.py
 │   ├── api/
-│   │   ├── __init__.py
-│   │   ├── rest_api.py       # FastAPI приложение
-│   │   ├── grpc_server.py    # gRPC сервер
-│   │   └── grpc_client_lib.py
+│   │   └── rest_api.py       # FastAPI application
+│   ├── auth/
+│   │   ├── jwt_handler.py    # JWT token management
+│   │   └── user_manager.py   # User authentication
 │   ├── models/
-│   │   ├── __init__.py
-│   │   ├── base_model.py     # Базовый класс модели
-│   │   ├── model_factory.py  # Фабрика моделей
-│   │   └── model_storage.py  # Хранилище моделей
-│   ├── proto/
-│   │   └── ml_service.proto  # gRPC proto файл
-│   ├── dashboard/
-│   │   └── app.py            # Streamlit дашборд
+│   │   ├── base_model.py     # Base ML model class
+│   │   ├── random_forest.py  # RandomForest implementation
+│   │   ├── logistic_regression.py
+│   │   ├── model_factory.py  # Model factory
+│   │   └── model_storage.py  # Model persistence
+│   ├── schemas/
+│   │   └── models.py         # Pydantic schemas
 │   └── utils/
-│       └── logger.py         # Настройка логирования
+│       └── logger.py         # Logging configuration
 ├── examples/
-│   ├── grpc_client.py        # Пример gRPC клиента
-│   └── grpc_client.ipynb     # Jupyter ноутбук с примерами
+│   └── rest_api_auth.py      # Authentication examples
 ├── tests/
-│   └── test_api.py
-├── docs/
-│   ├── GIT_WORKFLOW.md       # Инструкции по работе с Git
+│   └── test_api.py           # API tests
 │   └── TASK_DISTRIBUTION.md  # Распределение задач
 ├── pyproject.toml
 ├── README.md
 └── .gitignore
 ```
 
-## Логирование
+├── pyproject.toml            # Poetry dependencies
+├── .gitignore
+└── README.md
 
-Все важные действия логируются в файл `logs/app.log` и в консоль. Уровни логирования:
-- INFO - обычные операции
-- WARNING - предупреждения
-- ERROR - ошибки
+```
 
-## Лицензия
+---
+
+## 📝 License
 
 MIT
