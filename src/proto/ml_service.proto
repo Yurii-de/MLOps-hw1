@@ -1,0 +1,120 @@
+syntax = "proto3";
+
+package ml_service;
+
+// Сервис для работы с ML моделями
+service MLService {
+  // Получить список доступных типов моделей
+  rpc ListAvailableModels(Empty) returns (AvailableModelsResponse);
+  
+  // Обучить модель
+  rpc TrainModel(TrainRequest) returns (TrainResponse);
+  
+  // Получить предсказание
+  rpc Predict(PredictRequest) returns (PredictResponse);
+  
+  // Переобучить модель
+  rpc RetrainModel(RetrainRequest) returns (TrainResponse);
+  
+  // Удалить модель
+  rpc DeleteModel(DeleteRequest) returns (DeleteResponse);
+  
+  // Проверка статуса сервиса
+  rpc HealthCheck(Empty) returns (HealthCheckResponse);
+  
+  // Получить список обученных моделей
+  rpc ListTrainedModels(Empty) returns (TrainedModelsResponse);
+}
+
+// Пустое сообщение
+message Empty {}
+
+// Информация о доступном типе модели
+message AvailableModelInfo {
+  string name = 1;
+  string description = 2;
+  map<string, string> default_hyperparameters = 3;
+}
+
+// Ответ со списком доступных моделей
+message AvailableModelsResponse {
+  repeated AvailableModelInfo models = 1;
+}
+
+// Данные для обучения
+message TrainingData {
+  repeated FloatArray features = 1;
+  repeated int32 labels = 2;
+}
+
+// Массив float значений
+message FloatArray {
+  repeated float values = 1;
+}
+
+// Запрос на обучение модели
+message TrainRequest {
+  string model_type = 1;
+  string model_name = 2;
+  map<string, string> hyperparameters = 3;
+  TrainingData train_data = 4;
+}
+
+// Ответ на обучение модели
+message TrainResponse {
+  string model_id = 1;
+  string model_type = 2;
+  string message = 3;
+  map<string, double> metrics = 4;
+}
+
+// Запрос на предсказание
+message PredictRequest {
+  string model_id = 1;
+  repeated FloatArray features = 2;
+}
+
+// Ответ с предсказаниями
+message PredictResponse {
+  string model_id = 1;
+  repeated int32 predictions = 2;
+  repeated FloatArray probabilities = 3;
+}
+
+// Запрос на переобучение
+message RetrainRequest {
+  string model_id = 1;
+  string model_type = 2;
+  map<string, string> hyperparameters = 3;
+  TrainingData train_data = 4;
+}
+
+// Запрос на удаление
+message DeleteRequest {
+  string model_id = 1;
+}
+
+// Ответ на удаление
+message DeleteResponse {
+  string message = 1;
+}
+
+// Ответ health check
+message HealthCheckResponse {
+  string status = 1;
+  string version = 2;
+  int32 models_count = 3;
+}
+
+// Информация об обученной модели
+message TrainedModelInfo {
+  string model_id = 1;
+  string model_type = 2;
+  string created_at = 3;
+  map<string, string> hyperparameters = 4;
+}
+
+// Ответ со списком обученных моделей
+message TrainedModelsResponse {
+  repeated TrainedModelInfo models = 1;
+}
