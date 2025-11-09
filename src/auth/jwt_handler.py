@@ -81,3 +81,7 @@ def verify_token(token: str) -> Optional[dict]:
         return payload
     except JWTError:
         return None
+
+
+# Алиас для обратной совместимости
+decode_access_token = verify_token

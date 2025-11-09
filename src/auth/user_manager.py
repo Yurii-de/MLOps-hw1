@@ -5,18 +5,12 @@ from typing import Optional
 from src.auth.jwt_handler import get_password_hash, verify_password
 
 # Простое хранилище пользователей (в продакшене использовать БД)
-# Пароли: admin123, user123
+# Пароль: admin123
 USERS_DB = {
     "admin": {
         "username": "admin",
         "email": "admin@example.com",
-        "hashed_password": "$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW",
-        "disabled": False,
-    },
-    "user": {
-        "username": "user",
-        "email": "user@example.com",
-        "hashed_password": "$2b$12$gLHGvN5xvQKOXDq3RU/Tk.F5z8ZcfWFD2MNLJQfILpLiAhqJnqJqC",
+        "hashed_password": "$2b$12$t5ns3oudD5zWVv3Qel5wzOO5y9syoQ9Hn.pcLSLW04QAQTe9t/7vq",
         "disabled": False,
     },
 }

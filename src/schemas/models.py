@@ -44,6 +44,7 @@ class TrainModelRequest(BaseModel):
     train_data: TrainingData = Field(..., description="Данные для обучения")
 
     class Config:
+        protected_namespaces = ()
         json_schema_extra = {
             "example": {
                 "model_type": "RandomForest",
@@ -65,6 +66,9 @@ class TrainModelResponse(BaseModel):
     message: str = Field(..., description="Сообщение о статусе")
     metrics: Optional[Dict[str, float]] = Field(default=None, description="Метрики модели")
 
+    class Config:
+        protected_namespaces = ()
+
 
 class PredictRequest(BaseModel):
     """Запрос на получение предсказания."""
@@ -72,6 +76,7 @@ class PredictRequest(BaseModel):
     features: List[List[float]] = Field(..., description="Матрица признаков")
 
     class Config:
+        protected_namespaces = ()
         json_schema_extra = {
             "example": {
                 "features": [[2.0, 3.0], [4.0, 5.0]],
@@ -88,6 +93,9 @@ class PredictResponse(BaseModel):
         default=None, description="Вероятности классов"
     )
 
+    class Config:
+        protected_namespaces = ()
+
 
 class ModelInfo(BaseModel):
     """Информация о модели."""
@@ -96,6 +104,12 @@ class ModelInfo(BaseModel):
     model_type: str = Field(..., description="Тип модели")
     created_at: str = Field(..., description="Дата создания")
     hyperparameters: Dict[str, Any] = Field(..., description="Гиперпараметры модели")
+    is_trained: bool = Field(default=False, description="Обучена ли модель")
+    n_features: Optional[int] = Field(default=None, description="Количество признаков модели")
+    owner: Optional[str] = Field(default=None, description="Владелец модели")
+
+    class Config:
+        protected_namespaces = ()
 
 
 class AvailableModel(BaseModel):
@@ -168,3 +182,51 @@ class User(BaseModel):
     username: str = Field(..., description="Имя пользователя")
     email: str = Field(..., description="Email")
     disabled: bool = Field(default=False, description="Пользователь отключен")
+
+
+# Схемы для загрузки датасета
+
+
+class DatasetUploadResponse(BaseModel):
+    """Ответ на загрузку датасета."""
+
+    dataset_id: str = Field(..., description="ID загруженного датасета")
+    rows: int = Field(..., description="Количество строк")
+    columns: int = Field(..., description="Количество колонок")
+    target_column: str = Field(..., description="Название колонки target")
+    feature_columns: List[str] = Field(..., description="Список колонок признаков")
+    message: str = Field(..., description="Сообщение о статусе")
+
+
+class DatasetInfo(BaseModel):
+    """Информация о загруженном датасете."""
+
+    dataset_id: str = Field(..., description="ID датасета")
+    rows: int = Field(..., description="Количество строк")
+    columns: int = Field(..., description="Количество колонок")
+    target_column: str = Field(..., description="Название колонки target")
+    feature_columns: List[str] = Field(..., description="Список колонок признаков")
+    created_at: str = Field(..., description="Дата загрузки")
+    owner: Optional[str] = Field(default=None, description="Владелец датасета")
+
+
+class TrainModelFromDatasetRequest(BaseModel):
+    """Запрос на обучение модели на загруженном датасете."""
+
+    model_type: str = Field(..., description="Тип модели (RandomForest, LogisticRegression)")
+    model_name: str = Field(..., description="Уникальное имя для сохранения модели")
+    dataset_id: str = Field(..., description="ID загруженного датасета")
+    hyperparameters: Optional[Dict[str, Any]] = Field(
+        default=None, description="Гиперпараметры модели"
+    )
+
+    class Config:
+        protected_namespaces = ()
+        json_schema_extra = {
+            "example": {
+                "model_type": "RandomForest",
+                "model_name": "my_dataset_model",
+                "dataset_id": "dataset_123",
+                "hyperparameters": {"n_estimators": 100, "max_depth": 10, "random_state": 42},
+            }
+        }

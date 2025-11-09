@@ -23,6 +23,7 @@ class BaseMLModel(ABC):
         self.model = None
         self.created_at = datetime.now().isoformat()
         self.is_trained = False
+        self.owner = None  # Будет установлен при сохранении
 
     @abstractmethod
     def get_default_hyperparameters(self) -> Dict[str, Any]:
@@ -68,14 +69,15 @@ class BaseMLModel(ABC):
         Raises:
             ValueError: Если данные невалидны
         """
-        if not X or not y:
+        # Преобразуем в numpy arrays если ещё не преобразованы
+        X_array = np.array(X) if not isinstance(X, np.ndarray) else X
+        y_array = np.array(y) if not isinstance(y, np.ndarray) else y
+
+        if X_array.size == 0 or y_array.size == 0:
             raise ValueError("Training data cannot be empty")
 
-        if len(X) != len(y):
+        if len(X_array) != len(y_array):
             raise ValueError("Number of samples and labels must match")
-
-        X_array = np.array(X)
-        y_array = np.array(y)
 
         self.model = self._create_model()
         self.model.fit(X_array, y_array)
@@ -91,7 +93,7 @@ class BaseMLModel(ABC):
         Получить предсказания модели.
 
         Args:
-            X: Матрица признаков
+            X: Матрица признаков (list of lists или numpy array)
 
         Returns:
             Список предсказанных классов
@@ -103,10 +105,13 @@ class BaseMLModel(ABC):
         if not self.is_trained or self.model is None:
             raise RuntimeError("Model must be trained before making predictions")
 
-        if not X:
+        # Преобразуем в numpy array если еще не преобразовано
+        X_array = np.array(X)
+
+        # Проверка на пустой массив
+        if X_array.size == 0:
             raise ValueError("Input data cannot be empty")
 
-        X_array = np.array(X)
         predictions = self.model.predict(X_array)
 
         return predictions.tolist()
@@ -116,7 +121,7 @@ class BaseMLModel(ABC):
         Получить вероятности классов.
 
         Args:
-            X: Матрица признаков
+            X: Матрица признаков (list of lists или numpy array)
 
         Returns:
             Матрица вероятностей или None если модель не поддерживает
@@ -127,13 +132,16 @@ class BaseMLModel(ABC):
         if not self.is_trained or self.model is None:
             raise RuntimeError("Model must be trained before making predictions")
 
-        if not X:
+        # Преобразуем в numpy array если еще не преобразовано
+        X_array = np.array(X)
+
+        # Проверка на пустой массив
+        if X_array.size == 0:
             raise ValueError("Input data cannot be empty")
 
         if not hasattr(self.model, "predict_proba"):
             return None
 
-        X_array = np.array(X)
         probabilities = self.model.predict_proba(X_array)
 
         return probabilities.tolist()
@@ -145,10 +153,17 @@ class BaseMLModel(ABC):
         Returns:
             Словарь с информацией о модели
         """
-        return {
+        info = {
             "model_id": self.model_id,
             "model_type": self.__class__.__name__,
             "created_at": self.created_at,
             "hyperparameters": self.hyperparameters,
             "is_trained": self.is_trained,
+            "owner": self.owner,
         }
+
+        # Добавляем количество признаков, если модель обучена
+        if self.is_trained and self.model is not None and hasattr(self.model, 'n_features_in_'):
+            info["n_features"] = self.model.n_features_in_
+
+        return info
