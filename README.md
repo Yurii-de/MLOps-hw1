@@ -1,211 +1,216 @@
 # ML API Service - MLOps Homework 1
 
-Machine Learning API service with REST endpoints, JWT authentication, and model management.
-
-## 🎯 Features
-
-- ✅ **ML Models**: RandomForest, LogisticRegression
-- ✅ **REST API**: 10 endpoints (FastAPI)
-- ✅ **JWT Authentication**: Secure API access
-- ✅ **Model Management**: Train, predict, retrain, delete
-- ✅ **Tests**: pytest coverage
-- ✅ **Swagger UI**: Interactive API docs
+Комплексный сервис машинного обучения с поддержкой REST API, gRPC и веб-интерфейса для обучения, управления и использования ML моделей.
 
 ---
 
-## 🔐 Authentication
+## Состав группы
 
-Project uses **JWT Bearer tokens** for API protection.
+- **Лю Юрий** - REST API, аутентификация JWT, финальная полировка
+- **Ширшов Константин** - gRPC, Dashboard (Streamlit)
 
-### Pre-configured users:
+---
 
-| Username | Password |
-|----------|----------|
-| `admin` | `admin123` |
-| `user` | `user123` |
+## Возможности
 
-### Quick example:
+### ML Модели
+- ✅ **RandomForest** - Ансамблевый классификатор
+- ✅ **LogisticRegression** - Линейная классификация
+- ✅ **Настраиваемые гиперпараметры** для каждой модели
+
+### API
+- ✅ **REST endpoints**
+- ✅ **gRPC methods**
+- ✅ **JWT Authentication** - безопасный доступ к API
+- ✅ **Swagger UI** - интерактивная документация
+- ✅ **Автоматическая валидация** через Pydantic
+
+### Управление данными
+- ✅ **Загрузка CSV датасетов**
+- ✅ **Автоматическая обработка категориальных признаков**
+- ✅ **Сохранение энкодеров** для предсказаний
+- ✅ **Шаблонные датасеты** (Iris, Adult)
+
+### Веб-интерфейс
+- ✅ **Streamlit Dashboard** - удобный UI
+- ✅ **Управление датасетами** - загрузка, просмотр, удаление
+- ✅ **Обучение моделей** - визуальный интерфейс
+- ✅ **Предсказания** - через файлы
+
+---
+
+## Установка
+
+### Требования
+- Python 3.9+
+- pip или Poetry
+
+### Вариант 1: pip (рекомендуется)
 
 ```bash
-# 1. Get token
-curl -X POST http://localhost:8000/auth/login \
-  -d "username=admin&password=admin123"
-
-# 2. Use token in requests
-curl http://localhost:8000/models \
-  -H "Authorization: Bearer YOUR_TOKEN"
-```
-
----
-
-## Описание проекта
-
-Сервис для обучения и использования ML-моделей с поддержкой REST API и gRPC. Проект позволяет:
-- Обучать различные типы ML-моделей с настраиваемыми гиперпараметрами
-- Получать предсказания от обученных моделей
-- Управлять моделями (переобучение, удаление)
-- Взаимодействовать через REST API, gRPC и веб-интерфейс
-
-## Поддерживаемые модели
----
-
-## 📦 Installation
-
-1. Clone repository:
-```bash
+# 1. Клонировать репозиторий
 git clone https://github.com/Yurii-de/MLOps-hw1.git
-cd mo
+cd MLOps/hw1
+
+# 2. Создать виртуальное окружение
+python -m venv venv
+
+# Windows
+venv\Scripts\activate
+
+# Linux/Mac
+source venv/bin/activate
+
+# 3. Установить зависимости
+pip install -r requirements.txt
 ```
 
-2. Install dependencies with Poetry:
+### Вариант 2: Poetry
+
 ```bash
+# 1. Клонировать репозиторий
+git clone https://github.com/Yurii-de/MLOps-hw1.git
+cd MLOps/hw1
+
+# 2. Установить зависимости
 poetry install
+
+# 3. Активировать окружение
 poetry shell
 ```
 
 ---
 
-## 🚀 Running
+## Быстрый старт
 
-### REST API
+### Шаг 0: Учетные данные
+
+**Единый пользователь для всех сервисов:**
+- **Username:** `admin`
+- **Password:** `admin123`
+
+### Шаг 1: Загрузить шаблонные датасеты
 
 ```bash
-poetry run uvicorn src.api.rest_api:app --reload
+python examples/recreate_shared_datasets.py
 ```
 
-- API: `http://localhost:8000`
-- Swagger docs: `http://localhost:8000/docs`
+Это создаст два общих датасета:
+- **iris** - классификация цветов ириса (150 samples, 4 features)
+- **adult** - предсказание дохода (32561 samples, 14 features)
 
----
-
-## 📋 REST API Endpoints
-
-### Authentication
-- `POST /auth/register` - Register new user
-- `POST /auth/login` - Login and get JWT token
-- `GET /auth/me` - Get current user info
-
-### Health Check
-- `GET /health` - Service status (no auth required)
-
-### Models Management (authentication required)
-- `GET /models` - Получить список доступных типов моделей
-- `GET /models/trained` - Получить список обученных моделей
-- `POST /models/train` - Обучить новую модель
-- `POST /models/{model_id}/retrain` - Переобучить существующую модель
-- `DELETE /models/{model_id}` - Удалить модель
-- `POST /models/{model_id}/predict` - Получить предсказание
-
-## gRPC API
-
-Для работы с gRPC используйте клиент из `examples/grpc_client.py` или `examples/grpc_client.ipynb`.
-
-Доступные методы:
-- `ListAvailableModels` - Список доступных типов моделей
-- `TrainModel` - Обучение модели
-- `Predict` - Получение предсказаний
-- `RetrainModel` - Переобучение модели
-- `DeleteModel` - Удаление модели
-- `HealthCheck` - Проверка статуса
-
-### Пример использования gRPC клиента:
+### Шаг 2: Сгенерировать proto файлы (только для gRPC)
 
 ```bash
-poetry run python examples/grpc_client.py
+python generate_proto.py
 ```
 
-Или откройте ноутбук:
+### Шаг 3: Запустить REST API
+
 ```bash
-poetry run jupyter notebook examples/grpc_client.ipynb
-- `GET /models` - List available model types
-- `GET /models/trained` - List all trained models
-- `POST /models/train` - Train new model
-- `POST /models/{model_name}/predict` - Get predictions
-- `POST /models/{model_name}/retrain` - Retrain existing model
-- `DELETE /models/{model_name}` - Delete model
-
----
-
-## 💡 Usage Examples
-
-### Train a model:
-```bash
-# 1. Login and get token
-TOKEN=$(curl -X POST http://localhost:8000/auth/login \
-  -d "username=admin&password=admin123" | jq -r '.access_token')
-
-# 2. Train RandomForest
-curl -X POST http://localhost:8000/models/train \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model_type": "RandomForest",
-    "model_name": "my_model",
-    "hyperparameters": {"n_estimators": 100, "max_depth": 10},
-    "train_data": {
-      "features": [[1,2], [3,4], [5,6]],
-      "labels": [0, 1, 0]
-    }
-  }'
+python -m uvicorn src.api.rest_api:app --host 0.0.0.0 --port 8000
 ```
 
-### Get predictions:
+REST API будет доступен по адресу: **http://localhost:8000**
+
+Swagger UI: **http://localhost:8000/docs**
+
+### Шаг 4: Тестирование REST API
+
+**Проверка работы (в отдельном терминале):**
+
 ```bash
-curl -X POST http://localhost:8000/models/my_model/predict \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"features": [[2,3], [4,5]]}'
+python examples/test_rest_api.py
+```
+
+Скрипт выполнит:
+- ✅ Health check
+- ✅ Аутентификацию
+- ✅ Список доступных моделей
+- ✅ Список датасетов
+- ✅ Обучение модели
+- ✅ Предсказание
+- ✅ Удаление модели
+
+### Шаг 5: Запустить Dashboard
+
+**Вариант 1: Прямой запуск**
+```bash
+streamlit run src/dashboard/app.py
+```
+
+**Вариант 2: Через скрипт**
+```bash
+python examples/run_dashboard.py
+```
+
+Dashboard будет доступен по адресу: **http://localhost:8501**
+
+⚠️ **Требование:** REST API должен быть запущен!
+
+### Шаг 6: Запустить gRPC сервер (опционально)
+
+```bash
+python src/api/grpc_server.py
+```
+
+gRPC сервер будет запущен на порту: **50051**
+
+**Проверка работы (в отдельном терминале):**
+```bash
+python examples/grpc_demo_client.py
 ```
 
 ---
 
-## 🧪 Testing
+### Dashboard (Streamlit)
 
-Run tests:
-```bash
-poetry run pytest tests/ -v
-```
+Dashboard предоставляет визуальный интерфейс для всех операций.
 
----
+#### 1. Вход
 
-## 📁 Project Structure
+При первом запуске введите:
+- Username: `admin`
+- Password: `admin123`
 
-```
-mo/
-├── src/
-│   ├── api/
-│   │   └── rest_api.py       # FastAPI application
-│   ├── auth/
-│   │   ├── jwt_handler.py    # JWT token management
-│   │   └── user_manager.py   # User authentication
-│   ├── models/
-│   │   ├── base_model.py     # Base ML model class
-│   │   ├── random_forest.py  # RandomForest implementation
-│   │   ├── logistic_regression.py
-│   │   ├── model_factory.py  # Model factory
-│   │   └── model_storage.py  # Model persistence
-│   ├── schemas/
-│   │   └── models.py         # Pydantic schemas
-│   └── utils/
-│       └── logger.py         # Logging configuration
-├── examples/
-│   └── rest_api_auth.py      # Authentication examples
-├── tests/
-│   └── test_api.py           # API tests
-│   └── TASK_DISTRIBUTION.md  # Распределение задач
-├── pyproject.toml
-├── README.md
-└── .gitignore
-```
+#### 2. Управление датасетами
 
-├── pyproject.toml            # Poetry dependencies
-├── .gitignore
-└── README.md
+- **Загрузить датасет**: Выберите CSV файл или используйте шаблонные датасеты
+- **Просмотреть датасеты**: Список с метаданными и владельцами
+- **Удалить датасет**: Только владелец может удалить свой датасет (общие защищены)
 
-```
+**Владельцы датасетов:**
+- 📁 - ваш датасет
+- 🌐 - датасет другого пользователя
+- "Общий" - датасет без владельца (создан с флагом `make_shared=true`)
+
+#### 3. Обучение моделей
+
+1. Выберите датасет
+2. Выберите тип модели (RandomForest / LogisticRegression)
+3. Настройте гиперпараметры
+4. Нажмите "🚀 Обучить модель"
+
+#### 4. Предсказания
+
+**Только через CSV файл**
+- Загрузите файл с данными
+- Выберите датасет для применения энкодеров
+- Получите результаты
 
 ---
 
-## 📝 License
+### gRPC API
 
-MIT
+#### Доступные gRPC методы
+
+1. `Login` - аутентификация
+2. `ListAvailableModels` - список доступных типов моделей
+3. `TrainModelFromDataset` - обучение на датасете
+4. `Predict` - предсказание
+5. `HealthCheck` - проверка статуса
+6. `ListTrainedModels` - список обученных моделей
+7. `UploadDataset` - загрузка датасета
+8. `ListDatasets` - список датасетов
+9. `GetDatasetInfo` - информация о датасете
+10. `DeleteModel` - удаление модели
