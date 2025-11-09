@@ -27,7 +27,18 @@ def generate_proto():
     ]
 
     try:
-        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+        subprocess.run(cmd, check=True, capture_output=True, text=True)
+
+        # Исправляем импорты в сгенерированном файле
+        grpc_file = proto_dir / "ml_service_pb2_grpc.py"
+        if grpc_file.exists():
+            content = grpc_file.read_text(encoding='utf-8')
+            # Заменяем "import ml_service_pb2" на "from . import ml_service_pb2"
+            content = content.replace(
+                "import ml_service_pb2 as ml__service__pb2",
+                "from . import ml_service_pb2 as ml__service__pb2"
+            )
+            grpc_file.write_text(content, encoding='utf-8')
 
         print("✅ gRPC code generated successfully!")
         print("\nGenerated files:")

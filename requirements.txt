@@ -1,0 +1,27 @@
+# Core dependencies
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+pydantic==2.5.3
+python-multipart==0.0.6
+
+# ML libraries
+scikit-learn==1.4.0
+numpy==1.26.3
+pandas==2.2.0
+
+# gRPC
+grpcio==1.60.0
+grpcio-tools==1.60.0
+protobuf==4.25.2
+
+# Dashboard
+streamlit==1.30.0
+plotly==5.18.0
+
+# Authentication
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+bcrypt==4.1.2
+
+# Utils
+python-dotenv==1.0.0
