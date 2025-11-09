@@ -1,25 +1,32 @@
 """REST API для работы с ML моделями."""
 
+import io
+import uuid
 from datetime import timedelta
+from pathlib import Path
 from typing import List
 
-from fastapi import Depends, FastAPI, HTTPException, status
+import pandas as pd
+from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 
 from src import __version__
-from src.auth.jwt_handler import create_access_token, verify_token, ACCESS_TOKEN_EXPIRE_MINUTES
+from src.auth.jwt_handler import ACCESS_TOKEN_EXPIRE_MINUTES, create_access_token, verify_token
 from src.auth.user_manager import authenticate_user, create_user, get_user
+from src.models.dataset_storage import DatasetStorage
 from src.models.model_factory import ModelFactory
 from src.models.model_storage import ModelStorage
 from src.schemas.models import (
     AvailableModel,
-    ErrorResponse,
+    DatasetInfo,
+    DatasetUploadResponse,
     HealthResponse,
     ModelInfo,
     PredictRequest,
     PredictResponse,
     Token,
+    TrainModelFromDatasetRequest,
     TrainModelRequest,
     TrainModelResponse,
     User,
@@ -46,8 +53,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Определяем базовую директорию проекта (корень проекта - на 2 уровня выше от src/api)
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+
 # Инициализация хранилища моделей
-model_storage = ModelStorage()
+model_storage = ModelStorage(storage_dir=str(BASE_DIR / "models"))
+
+# Инициализация хранилища датасетов
+dataset_storage = DatasetStorage(storage_dir=str(BASE_DIR / "datasets"))
 
 # OAuth2 схема для токенов
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
@@ -378,6 +391,78 @@ async def predict(model_id: str, request: PredictRequest, current_user: dict = D
 
 
 @app.post(
+    "/models/{model_id}/predict-csv",
+    response_model=PredictResponse,
+    tags=["Prediction"],
+    summary="Получить предсказание модели из CSV файла с автоматическим кодированием",
+)
+async def predict_from_csv(
+    model_id: str,
+    dataset_id: str = Form(..., description="ID датасета для получения энкодеров"),
+    file: UploadFile = File(..., description="CSV файл с данными"),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Получить предсказание от модели с автоматическим применением энкодеров датасета.
+    
+    Этот endpoint использует энкодеры, сохраненные при загрузке датасета,
+    для корректной обработки категориальных признаков.
+
+    Args:
+        model_id: ID модели
+        dataset_id: ID датасета (для получения энкодеров)
+        file: CSV файл с признаками
+        current_user: Текущий пользователь
+
+    Returns:
+        Предсказания модели
+    """
+    logger.info(f"User '{current_user['username']}' CSV prediction for model '{model_id}' using dataset '{dataset_id}'")
+
+    try:
+        # Читаем CSV
+        content = await file.read()
+        df = pd.read_csv(io.BytesIO(content))
+
+        # Убираем целевую колонку если есть
+        target_cols = ['target', 'label', 'class', 'species', 'income']
+        feature_columns = [col for col in df.columns if col.lower() not in target_cols]
+        df = df[feature_columns]
+
+        logger.info(f"CSV loaded: {df.shape[0]} samples, {df.shape[1]} features")
+
+        # Применяем энкодеры датасета
+        X_encoded = dataset_storage.encode_features(dataset_id, df)
+
+        logger.info(f"Encoded features for dataset '{dataset_id}': {X_encoded.shape}, dtype: {X_encoded.dtype}")
+        logger.debug(f"First sample: {X_encoded[0]}")
+
+        # Загружаем модель
+        model = model_storage.load_model(model_id)
+
+        logger.info(f"Model loaded, type: {type(model)}, sklearn model: {type(model.model) if hasattr(model, 'model') else 'N/A'}")
+
+        # Получаем предсказания
+        predictions = model.predict(X_encoded)
+        probabilities = model.predict_proba(X_encoded)
+
+        logger.info(f"Predictions generated: {len(predictions)} samples")
+
+        return PredictResponse(
+            model_id=model_id,
+            predictions=predictions,
+            probabilities=probabilities
+        )
+
+    except FileNotFoundError as e:
+        logger.error(f"Model or dataset not found: {e}")
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error during CSV prediction: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post(
     "/models/{model_id}/retrain",
     response_model=TrainModelResponse,
     tags=["Models"],
@@ -470,6 +555,273 @@ async def delete_model(model_id: str, current_user: dict = Depends(get_current_u
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         logger.error(f"Error deleting model: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Эндпоинты для работы с датасетами
+
+
+@app.post(
+    "/datasets/upload",
+    response_model=DatasetUploadResponse,
+    tags=["Datasets"],
+    summary="Загрузить датасет из CSV файла",
+)
+async def upload_dataset(
+    file: UploadFile = File(..., description="CSV файл с датасетом"),
+    target_column: str = Form(..., description="Название колонки с целевой переменной"),
+    dataset_name: str = Form(None, description="Название датасета (опционально)"),
+    preprocess_categorical: bool = Form(True, description="Автоматически предобрабатывать категориальные переменные"),
+    make_shared: bool = Form(False, description="Сделать датасет общим (доступен всем, owner=None)"),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Загрузить датасет из CSV файла.
+
+    Args:
+        file: CSV файл
+        target_column: Название колонки с целевой переменной (target)
+        dataset_name: Опциональное название датасета
+        preprocess_categorical: Применять ли предобработку категориальных переменных
+        make_shared: Сделать датасет общим (owner будет None)
+        current_user: Текущий пользователь (требуется аутентификация)
+
+    Returns:
+        Информация о загруженном датасете
+
+    Raises:
+        HTTPException: Если файл невалиден или произошла ошибка
+    """
+    logger.info(
+        f"User '{current_user['username']}' uploading dataset with target column '{target_column}', "
+        f"preprocess_categorical={preprocess_categorical}, make_shared={make_shared}"
+    )
+
+    # Проверяем тип файла
+    if not file.filename.endswith(".csv"):
+        raise HTTPException(
+            status_code=400, detail="Only CSV files are supported. Please upload a .csv file."
+        )
+
+    try:
+        # Читаем CSV файл
+        contents = await file.read()
+        df = pd.read_csv(io.BytesIO(contents))
+
+        logger.info(f"CSV file loaded: {len(df)} rows, {len(df.columns)} columns")
+
+        # Генерируем ID датасета
+        dataset_id = dataset_name if dataset_name else f"dataset_{uuid.uuid4().hex[:8]}"
+
+        # Проверяем уникальность названия датасета
+        existing_datasets = dataset_storage.list_datasets()
+        if dataset_id in existing_datasets:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Датасет с названием '{dataset_id}' уже существует. Пожалуйста, выберите другое название."
+            )
+
+        # Сохраняем датасет с предобработкой
+        # Если make_shared=True, owner будет None, иначе текущий пользователь
+        dataset_info = dataset_storage.save_dataset(
+            dataset_id=dataset_id,
+            df=df,
+            target_column=target_column,
+            preprocess_categorical=preprocess_categorical,
+            owner=None if make_shared else current_user['username'],
+        )
+
+        logger.info(f"Dataset '{dataset_id}' saved successfully (shared={make_shared})")
+
+        if preprocess_categorical and dataset_info.get("categorical_columns_processed"):
+            logger.info(f"Categorical columns processed: {dataset_info['categorical_columns_processed']}")
+
+        return DatasetUploadResponse(
+            dataset_id=dataset_info["dataset_id"],
+            rows=dataset_info["rows"],
+            columns=dataset_info["columns"],
+            target_column=dataset_info["target_column"],
+            feature_columns=dataset_info["feature_columns"],
+            message=(
+                f"Dataset uploaded successfully with {dataset_info['rows']} rows. "
+                f"Categorical columns processed: {len(dataset_info.get('categorical_columns_processed', []))}"
+                if preprocess_categorical
+                else f"Dataset uploaded successfully with {dataset_info['rows']} rows"
+            ),
+        )
+
+    except ValueError as e:
+        logger.error(f"Validation error during dataset upload: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error uploading dataset: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to upload dataset: {str(e)}")
+
+
+@app.get(
+    "/datasets",
+    response_model=List[DatasetInfo],
+    tags=["Datasets"],
+    summary="Получить список загруженных датасетов",
+)
+async def get_datasets(current_user: dict = Depends(get_current_user)):
+    """
+    Получить список всех загруженных датасетов.
+
+    Args:
+        current_user: Текущий пользователь (требуется аутентификация)
+
+    Returns:
+        Список загруженных датасетов
+    """
+    logger.info(f"User '{current_user['username']}' fetching datasets")
+
+    try:
+        dataset_ids = dataset_storage.list_datasets()
+        datasets_info = []
+
+        for dataset_id in dataset_ids:
+            try:
+                info = dataset_storage.get_dataset_info(dataset_id)
+                datasets_info.append(DatasetInfo(**info))
+            except Exception as e:
+                logger.warning(f"Error loading dataset '{dataset_id}': {e}")
+                continue
+
+        logger.info(f"Found {len(datasets_info)} datasets")
+        return datasets_info
+
+    except Exception as e:
+        logger.error(f"Error fetching datasets: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get(
+    "/datasets/{dataset_id}",
+    response_model=DatasetInfo,
+    tags=["Datasets"],
+    summary="Получить информацию о датасете",
+)
+async def get_dataset(dataset_id: str, current_user: dict = Depends(get_current_user)):
+    """
+    Получить информацию о конкретном датасете.
+
+    Args:
+        dataset_id: ID датасета
+        current_user: Текущий пользователь (требуется аутентификация)
+
+    Returns:
+        Информация о датасете
+    """
+    logger.info(f"User '{current_user['username']}' fetching dataset '{dataset_id}'")
+
+    try:
+        info = dataset_storage.get_dataset_info(dataset_id)
+        return DatasetInfo(**info)
+
+    except FileNotFoundError as e:
+        logger.error(f"Dataset '{dataset_id}' not found")
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error fetching dataset: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete(
+    "/datasets/{dataset_id}",
+    tags=["Datasets"],
+    summary="Удалить датасет",
+)
+async def delete_dataset(dataset_id: str, current_user: dict = Depends(get_current_user)):
+    """
+    Удалить загруженный датасет.
+
+    Args:
+        dataset_id: ID датасета для удаления
+        current_user: Текущий пользователь (требуется аутентификация)
+
+    Returns:
+        Сообщение об успешном удалении
+    """
+    logger.info(f"User '{current_user['username']}' deleting dataset '{dataset_id}'")
+
+    try:
+        dataset_storage.delete_dataset(dataset_id)
+        logger.info(f"Dataset '{dataset_id}' deleted successfully")
+
+        return {"message": f"Dataset '{dataset_id}' deleted successfully"}
+
+    except FileNotFoundError as e:
+        logger.error(f"Dataset '{dataset_id}' not found for deletion")
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error deleting dataset: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post(
+    "/models/train-from-dataset",
+    response_model=TrainModelResponse,
+    tags=["Models"],
+    summary="Обучить модель на загруженном датасете",
+)
+async def train_model_from_dataset(
+    request: TrainModelFromDatasetRequest, current_user: dict = Depends(get_current_user)
+):
+    """
+    Обучить модель на ранее загруженном датасете.
+
+    Args:
+        request: Параметры обучения модели с ID датасета
+        current_user: Текущий пользователь (требуется аутентификация)
+
+    Returns:
+        Информация об обученной модели
+    """
+    logger.info(
+        f"User '{current_user['username']}' training model '{request.model_name}' "
+        f"on dataset '{request.dataset_id}'"
+    )
+
+    try:
+        # Загружаем данные из датасета
+        X, y = dataset_storage.get_training_data(request.dataset_id)
+
+        logger.info(f"Training data loaded: X shape {X.shape}, y shape {y.shape}")
+
+        # Создаем модель
+        model = ModelFactory.create_model(
+            model_type=request.model_type,
+            model_id=request.model_name,
+            hyperparameters=request.hyperparameters,
+        )
+
+        # Обучаем модель
+        metrics = model.train(X, y)
+
+        # Устанавливаем владельца модели
+        model.owner = current_user['username']
+
+        # Сохраняем модель
+        model_storage.save_model(model)
+
+        logger.info(f"Model '{request.model_name}' trained successfully. Metrics: {metrics}")
+
+        return TrainModelResponse(
+            model_id=request.model_name,
+            model_type=request.model_type,
+            message=f"Model trained successfully on dataset '{request.dataset_id}'",
+            metrics=metrics,
+        )
+
+    except FileNotFoundError as e:
+        logger.error(f"Dataset '{request.dataset_id}' not found")
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        logger.error(f"Validation error during training: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error training model: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

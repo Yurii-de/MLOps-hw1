@@ -4,6 +4,9 @@ package ml_service;
 
 // Сервис для работы с ML моделями
 service MLService {
+  // Аутентификация
+  rpc Login(LoginRequest) returns (LoginResponse);
+  
   // Получить список доступных типов моделей
   rpc ListAvailableModels(Empty) returns (AvailableModelsResponse);
   
@@ -24,10 +27,34 @@ service MLService {
   
   // Получить список обученных моделей
   rpc ListTrainedModels(Empty) returns (TrainedModelsResponse);
+  
+  // Загрузить датасет
+  rpc UploadDataset(UploadDatasetRequest) returns (UploadDatasetResponse);
+  
+  // Получить список датасетов
+  rpc ListDatasets(Empty) returns (ListDatasetsResponse);
+  
+  // Получить информацию о датасете
+  rpc GetDatasetInfo(DatasetRequest) returns (DatasetInfoResponse);
+  
+  // Обучить модель на датасете
+  rpc TrainModelFromDataset(TrainFromDatasetRequest) returns (TrainResponse);
 }
 
 // Пустое сообщение
 message Empty {}
+
+// Запрос на аутентификацию
+message LoginRequest {
+  string username = 1;
+  string password = 2;
+}
+
+// Ответ на аутентификацию
+message LoginResponse {
+  string access_token = 1;
+  string token_type = 2;
+}
 
 // Информация о доступном типе модели
 message AvailableModelInfo {
@@ -112,9 +139,61 @@ message TrainedModelInfo {
   string model_type = 2;
   string created_at = 3;
   map<string, string> hyperparameters = 4;
+  string owner = 5;  // Владелец модели или пусто если общая
+  bool is_trained = 6;  // Статус обучения
+  int32 n_features = 7;  // Количество признаков
 }
 
 // Ответ со списком обученных моделей
 message TrainedModelsResponse {
   repeated TrainedModelInfo models = 1;
+}
+
+// Запрос на загрузку датасета
+message UploadDatasetRequest {
+  bytes file_content = 1;
+  string target_column = 2;
+  string dataset_name = 3;
+  bool preprocess_categorical = 4;
+  bool make_shared = 5;  // Сделать датасет общим (owner=None)
+}
+
+// Ответ на загрузку датасета
+message UploadDatasetResponse {
+  string dataset_id = 1;
+  int32 rows = 2;
+  int32 columns = 3;
+  string target_column = 4;
+  repeated string feature_columns = 5;
+  string message = 6;
+  string owner = 7;  // Владелец датасета или пусто если общий
+}
+
+// Запрос информации о датасете
+message DatasetRequest {
+  string dataset_id = 1;
+}
+
+// Информация о датасете
+message DatasetInfoResponse {
+  string dataset_id = 1;
+  int32 rows = 2;
+  int32 columns = 3;
+  string target_column = 4;
+  repeated string feature_columns = 5;
+  string created_at = 6;
+  string owner = 7;  // Владелец датасета или пусто если общий
+}
+
+// Список датасетов
+message ListDatasetsResponse {
+  repeated DatasetInfoResponse datasets = 1;
+}
+
+// Запрос на обучение модели на датасете
+message TrainFromDatasetRequest {
+  string model_type = 1;
+  string model_name = 2;
+  string dataset_id = 3;
+  map<string, string> hyperparameters = 4;
 }
