@@ -10,7 +10,8 @@ import numpy as np
 import pandas as pd
 from sklearn.preprocessing import LabelEncoder
 
-from src.utils.logger import setup_logger
+from src.config import DATASETS_DIR
+from src.logger import setup_logger
 
 logger = setup_logger()
 
@@ -18,14 +19,14 @@ logger = setup_logger()
 class DatasetStorage:
     """Хранилище для сохранения и загрузки датасетов."""
 
-    def __init__(self, storage_dir: str = "datasets"):
+    def __init__(self, storage_dir: str = None):
         """
         Инициализация хранилища.
 
         Args:
-            storage_dir: Директория для хранения датасетов
+            storage_dir: Директория для хранения датасетов (если None, используется из config)
         """
-        self.storage_dir = Path(storage_dir)
+        self.storage_dir = Path(storage_dir) if storage_dir else DATASETS_DIR
         self.storage_dir.mkdir(parents=True, exist_ok=True)
         self._datasets: Dict[str, dict] = {}
         logger.info(f"Dataset storage initialized at {self.storage_dir.absolute()}")
@@ -141,11 +142,11 @@ class DatasetStorage:
 
         # Обработка целевой переменной, если она категориальная
         target_encoder = None
-        y = df[target_column]
+        target = df[target_column]
 
-        if y.dtype == 'object' or y.dtype.name == 'category':
+        if target.dtype == 'object' or target.dtype.name == 'category':
             target_encoder = LabelEncoder()
-            y = target_encoder.fit_transform(y)
+            target = target_encoder.fit_transform(target)
 
             # Сохраняем энкодер target
             target_encoder_file = self.storage_dir / f"{dataset_id}_target_encoder.json"
@@ -155,17 +156,17 @@ class DatasetStorage:
                 }, f, indent=2, ensure_ascii=False)
         else:
             # Преобразуем в numpy array
-            y = y.values
+            target = target.values
 
         # Разделяем на признаки и target
         feature_columns = [col for col in df.columns if col != target_column]
-        X = df[feature_columns].values
+        train_features = df[feature_columns].values
 
         # Метаданные
         dataset_info = {
             "dataset_id": dataset_id,
-            "X": X,
-            "y": y,  # y теперь всегда numpy array
+            "train_features": train_features,
+            "target": target,  # target теперь всегда numpy array
             "feature_columns": feature_columns,
             "target_column": target_column,
             "rows": len(df),
@@ -235,10 +236,10 @@ class DatasetStorage:
             dataset_id: ID датасета
 
         Returns:
-            Кортеж (X, y) с признаками и целевой переменной
+            Кортеж (train_features, target) с признаками и целевой переменной
         """
         dataset_info = self.load_dataset(dataset_id)
-        return dataset_info["X"], dataset_info["y"]
+        return dataset_info["train_features"], dataset_info["target"]
 
     def encode_features(self, dataset_id: str, df: pd.DataFrame) -> np.ndarray:
         """

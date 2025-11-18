@@ -55,13 +55,13 @@ class BaseMLModel(ABC):
         """
         pass
 
-    def train(self, X: List[List[float]], y: List[int]) -> Dict[str, float]:
+    def train(self, train_features: List[List[float]], target: List[int]) -> Dict[str, float]:
         """
         Обучить модель на данных.
 
         Args:
-            X: Матрица признаков
-            y: Вектор меток
+            train_features: Матрица признаков
+            target: Вектор меток
 
         Returns:
             Словарь с метриками обучения
@@ -70,30 +70,30 @@ class BaseMLModel(ABC):
             ValueError: Если данные невалидны
         """
         # Преобразуем в numpy arrays если ещё не преобразованы
-        X_array = np.array(X) if not isinstance(X, np.ndarray) else X
-        y_array = np.array(y) if not isinstance(y, np.ndarray) else y
+        train_array = np.array(train_features) if not isinstance(train_features, np.ndarray) else train_features
+        target_array = np.array(target) if not isinstance(target, np.ndarray) else target
 
-        if X_array.size == 0 or y_array.size == 0:
+        if train_array.size == 0 or target_array.size == 0:
             raise ValueError("Training data cannot be empty")
 
-        if len(X_array) != len(y_array):
+        if len(train_array) != len(target_array):
             raise ValueError("Number of samples and labels must match")
 
         self.model = self._create_model()
-        self.model.fit(X_array, y_array)
+        self.model.fit(train_array, target_array)
         self.is_trained = True
 
         # Вычисляем базовые метрики
-        train_score = self.model.score(X_array, y_array)
+        train_score = self.model.score(train_array, target_array)
 
         return {"train_accuracy": float(train_score)}
 
-    def predict(self, X: List[List[float]]) -> List[int]:
+    def predict(self, train_features: List[List[float]]) -> List[int]:
         """
         Получить предсказания модели.
 
         Args:
-            X: Матрица признаков (list of lists или numpy array)
+            train_features: Матрица признаков (list of lists или numpy array)
 
         Returns:
             Список предсказанных классов
@@ -106,22 +106,22 @@ class BaseMLModel(ABC):
             raise RuntimeError("Model must be trained before making predictions")
 
         # Преобразуем в numpy array если еще не преобразовано
-        X_array = np.array(X)
+        train_array = np.array(train_features)
 
         # Проверка на пустой массив
-        if X_array.size == 0:
+        if train_array.size == 0:
             raise ValueError("Input data cannot be empty")
 
-        predictions = self.model.predict(X_array)
+        predictions = self.model.predict(train_array)
 
         return predictions.tolist()
 
-    def predict_proba(self, X: List[List[float]]) -> Optional[List[List[float]]]:
+    def predict_proba(self, train_features: List[List[float]]) -> Optional[List[List[float]]]:
         """
         Получить вероятности классов.
 
         Args:
-            X: Матрица признаков (list of lists или numpy array)
+            train_features: Матрица признаков (list of lists или numpy array)
 
         Returns:
             Матрица вероятностей или None если модель не поддерживает
@@ -133,16 +133,16 @@ class BaseMLModel(ABC):
             raise RuntimeError("Model must be trained before making predictions")
 
         # Преобразуем в numpy array если еще не преобразовано
-        X_array = np.array(X)
+        train_array = np.array(train_features)
 
         # Проверка на пустой массив
-        if X_array.size == 0:
+        if train_array.size == 0:
             raise ValueError("Input data cannot be empty")
 
         if not hasattr(self.model, "predict_proba"):
             return None
 
-        probabilities = self.model.predict_proba(X_array)
+        probabilities = self.model.predict_proba(train_array)
 
         return probabilities.tolist()
 
