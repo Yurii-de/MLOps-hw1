@@ -42,7 +42,7 @@ def get_auth_token(stub):
     print("🔐 Authenticating...")
     login_request = ml_service_pb2.LoginRequest(
         username="admin",
-        password="admin123"
+        password="admin"
     )
 
     try:

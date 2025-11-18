@@ -4,6 +4,7 @@ import json
 import sys
 from concurrent import futures
 from pathlib import Path
+
 import grpc
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -19,16 +20,15 @@ except ImportError:
 
 from src import __version__
 from src.auth.jwt_handler import create_access_token, decode_access_token, verify_password
+from src.logger import setup_logger
 from src.models.dataset_storage import DatasetStorage
-from src.models.model_factory import ModelFactory
-from src.models.model_storage import ModelStorage
-from src.utils.logger import setup_logger
+from src.models.model_manager import ModelFactory, ModelStorage
 
 logger = setup_logger()
 
 # Простая БД пользователей
 USERS_DB = {
-    "admin": {"username": "admin", "hashed_password": "$2b$12$t5ns3oudD5zWVv3Qel5wzOO5y9syoQ9Hn.pcLSLW04QAQTe9t/7vq"},  # admin123
+    "admin": {"username": "admin", "hashed_password": "$2b$12$AZe3X7DXDd9lljvdmL3gmeJ0pPqtW4pBcV8WqaqTg8J7.2uTMnHri"},  # admin
 }
 
 # Методы, не требующие аутентификации
@@ -90,11 +90,12 @@ class AuthInterceptor(grpc.ServerInterceptor):
             decode_access_token(token)
             return continuation(handler_call_details)
         except Exception as e:
+            error_msg = f"Invalid token: {str(e)}"
             logger.warning(f"gRPC: Invalid token for {method}: {e}")
             return grpc.unary_unary_rpc_method_handler(
                 lambda request, context: context.abort(
                     grpc.StatusCode.UNAUTHENTICATED,
-                    f"Invalid token: {str(e)}"
+                    error_msg
                 )
             )
 
@@ -227,7 +228,7 @@ class MLServiceServicer:
             labels = list(request.train_data.labels)
 
             # Обучаем модель
-            metrics = model.train(X=features, y=labels)
+            metrics = model.train(train_features=features, target=labels)
 
             # Сохраняем модель
             self.model_storage.save_model(model)
@@ -337,7 +338,7 @@ class MLServiceServicer:
             labels = list(request.train_data.labels)
 
             # Обучаем модель
-            metrics = model.train(X=features, y=labels)
+            metrics = model.train(train_features=features, target=labels)
 
             # Сохраняем модель
             self.model_storage.save_model(model)
@@ -599,9 +600,9 @@ class MLServiceServicer:
 
         try:
             # Загружаем данные из датасета
-            X, y = self.dataset_storage.get_training_data(request.dataset_id)
+            train_features, target = self.dataset_storage.get_training_data(request.dataset_id)
 
-            logger.info(f"Training data loaded: X shape {X.shape}, y shape {y.shape}")
+            logger.info(f"Training data loaded: train_features shape {train_features.shape}, target shape {target.shape}")
 
             # Конвертируем гиперпараметры
             hyperparameters = {}
@@ -619,7 +620,7 @@ class MLServiceServicer:
             )
 
             # Обучаем модель
-            metrics = model.train(X.tolist(), y.tolist())
+            metrics = model.train(train_features.tolist(), target.tolist())
 
             # Сохраняем модель
             self.model_storage.save_model(model)

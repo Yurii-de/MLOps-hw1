@@ -121,7 +121,7 @@ def predict(model_id: str, features):
         try:
             error_detail = e.response.json().get("detail", str(e))
             st.error(f"Ошибка сервера: {error_detail}")
-        except:
+        except Exception:
             st.error(f"Ошибка при получении предсказания: {e}")
         return None
     except Exception as e:
@@ -129,7 +129,7 @@ def predict(model_id: str, features):
         return None
 
 
-def predict_from_csv(model_id: str, dataset_id: str, csv_file):
+def predict_csv_from_dataset(model_id: str, dataset_id: str, csv_file):
     """Получить предсказание из CSV с автоматическим кодированием."""
     try:
         files = {'file': ('data.csv', csv_file, 'text/csv')}
@@ -147,13 +147,15 @@ def predict_from_csv(model_id: str, dataset_id: str, csv_file):
         try:
             error_detail = e.response.json().get("detail", str(e))
             st.error(f"Ошибка сервера: {error_detail}")
-        except:
+        except Exception:
             st.error(f"Ошибка при получении предсказания: {e}")
         return None
     except Exception as e:
         st.error(f"Ошибка при получении предсказания: {e}")
         return None
 
+
+# ─────────────────────────────────────────────────────────────────
 
 def has_feature_encoders(dataset_id: str) -> bool:
     """Проверить, есть ли у датасета энкодеры признаков (не только таргета)."""
@@ -228,7 +230,7 @@ def upload_dataset(file, target_column: str, dataset_name: str = None, preproces
         # Извлекаем детальное сообщение об ошибке из ответа API
         try:
             error_detail = e.response.json().get("detail", str(e))
-        except:
+        except Exception:
             error_detail = str(e)
         st.error(f"❌ {error_detail}")
         return None
@@ -305,7 +307,7 @@ if not st.session_state.access_token:
                 else:
                     st.error("Введите имя пользователя и пароль")
 
-        st.info("**Тестовый пользователь:**\n- admin / admin123")
+        st.info("**Тестовый пользователь:**\n- admin / admin")
 
     with tab2:
         st.header("Регистрация")

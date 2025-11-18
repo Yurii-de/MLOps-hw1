@@ -79,7 +79,7 @@ def test_login():
     try:
         response = requests.post(
             f"{API_URL}/auth/login",
-            data={"username": "admin", "password": "admin123"}
+            data={"username": "admin", "password": "admin"}
         )
         response.raise_for_status()
         data = response.json()

@@ -3,7 +3,6 @@
 import io
 import uuid
 from datetime import timedelta
-from pathlib import Path
 from typing import List
 
 import pandas as pd
@@ -12,12 +11,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 
 from src import __version__
-from src.auth.jwt_handler import ACCESS_TOKEN_EXPIRE_MINUTES, create_access_token, verify_token
+from src.auth.jwt_handler import create_access_token, verify_token
 from src.auth.user_manager import authenticate_user, create_user, get_user
+from src.config import ACCESS_TOKEN_EXPIRE_MINUTES, API_DESCRIPTION, API_TITLE
+from src.logger import setup_logger
 from src.models.dataset_storage import DatasetStorage
-from src.models.model_factory import ModelFactory
-from src.models.model_storage import ModelStorage
-from src.schemas.models import (
+from src.models.model_manager import ModelFactory, ModelStorage
+from src.schemas import (
     AvailableModel,
     DatasetInfo,
     DatasetUploadResponse,
@@ -32,15 +32,14 @@ from src.schemas.models import (
     User,
     UserCreate,
 )
-from src.utils.logger import setup_logger
 
 # Настройка логирования
 logger = setup_logger()
 
 # Создание приложения
 app = FastAPI(
-    title="ML API Service",
-    description="API для обучения и использования ML моделей",
+    title=API_TITLE,
+    description=API_DESCRIPTION,
     version=__version__,
 )
 
@@ -53,14 +52,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Определяем базовую директорию проекта (корень проекта - на 2 уровня выше от src/api)
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
-
 # Инициализация хранилища моделей
-model_storage = ModelStorage(storage_dir=str(BASE_DIR / "models"))
+model_storage = ModelStorage()
 
 # Инициализация хранилища датасетов
-dataset_storage = DatasetStorage(storage_dir=str(BASE_DIR / "datasets"))
+dataset_storage = DatasetStorage()
 
 # OAuth2 схема для токенов
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
@@ -317,7 +313,7 @@ async def train_model(request: TrainModelRequest, current_user: dict = Depends(g
 
         # Обучаем модель
         metrics = model.train(
-            X=request.train_data.features, y=request.train_data.labels
+            train_features=request.train_data.features, target=request.train_data.labels
         )
 
         # Сохраняем модель
@@ -500,7 +496,7 @@ async def retrain_model(model_id: str, request: TrainModelRequest, current_user:
 
         # Обучаем модель
         metrics = model.train(
-            X=request.train_data.features, y=request.train_data.labels
+            train_features=request.train_data.features, target=request.train_data.labels
         )
 
         # Сохраняем модель (перезаписываем)
@@ -785,9 +781,9 @@ async def train_model_from_dataset(
 
     try:
         # Загружаем данные из датасета
-        X, y = dataset_storage.get_training_data(request.dataset_id)
+        train_features, target = dataset_storage.get_training_data(request.dataset_id)
 
-        logger.info(f"Training data loaded: X shape {X.shape}, y shape {y.shape}")
+        logger.info(f"Training data loaded: train_features shape {train_features.shape}, target shape {target.shape}")
 
         # Создаем модель
         model = ModelFactory.create_model(
@@ -797,7 +793,7 @@ async def train_model_from_dataset(
         )
 
         # Обучаем модель
-        metrics = model.train(X, y)
+        metrics = model.train(train_features, target)
 
         # Устанавливаем владельца модели
         model.owner = current_user['username']
