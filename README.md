@@ -43,9 +43,9 @@
 
 ### Требования
 - Python 3.9+
-- pip или Poetry
+- uv или Poetry
 
-### Вариант 1: pip (рекомендуется)
+### Вариант 1: uv (рекомендуется)
 
 ```bash
 # 1. Клонировать репозиторий
@@ -53,16 +53,16 @@ git clone https://github.com/Yurii-de/MLOps-hw1.git
 cd MLOps/hw1
 
 # 2. Создать виртуальное окружение
-python -m venv venv
+uv venv
 
 # Windows
 venv\Scripts\activate
 
 # Linux/Mac
-source venv/bin/activate
+source .venv/bin/activate
 
 # 3. Установить зависимости
-pip install -r requirements.txt
+uv pip install -r requirements.txt
 ```
 
 ### Вариант 2: Poetry
@@ -87,7 +87,7 @@ poetry shell
 
 **Единый пользователь для всех сервисов:**
 - **Username:** `admin`
-- **Password:** `admin123`
+- **Password:** `admin`
 
 ### Шаг 1: Загрузить шаблонные датасеты
 
@@ -171,7 +171,7 @@ Dashboard предоставляет визуальный интерфейс д�
 
 При первом запуске введите:
 - Username: `admin`
-- Password: `admin123`
+- Password: `admin`
 
 #### 2. Управление датасетами
 
