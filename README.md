@@ -56,13 +56,13 @@ cd MLOps/hw1
 uv venv
 
 # Windows
-venv\Scripts\activate
+.venv\Scripts\activate
 
 # Linux/Mac
 source .venv/bin/activate
 
 # 3. Установить зависимости
-uv pip install -r requirements.txt
+uv sync
 ```
 
 ### Вариант 2: Poetry

@@ -5,6 +5,14 @@ from typing import Dict
 import pandas as pd
 import requests
 import streamlit as st
+import os
+from pathlib import Path
+
+# Определяем пути
+CURRENT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = CURRENT_DIR.parent.parent
+DATASETS_DIR = PROJECT_ROOT / "datasets"
+TEST_DATA_DIR = PROJECT_ROOT / "test_data"
 
 # Конфигурация API
 API_BASE_URL = "http://localhost:8000"
@@ -159,10 +167,9 @@ def predict_csv_from_dataset(model_id: str, dataset_id: str, csv_file):
 
 def has_feature_encoders(dataset_id: str) -> bool:
     """Проверить, есть ли у датасета энкодеры признаков (не только таргета)."""
-    from pathlib import Path
-
+    
     # Проверяем наличие папки с энкодерами
-    encoders_dir = Path("datasets") / f"{dataset_id}_encoders"
+    encoders_dir = DATASETS_DIR / f"{dataset_id}_encoders"
 
     if not encoders_dir.exists():
         return False
@@ -394,18 +401,16 @@ if page == "📁 Управление датасетами":
             st.write("**Доступные готовые датасеты:**")
 
             # Проверяем наличие файлов
-            import os
-            test_data_path = "test_data"
             available_datasets = {}
 
-            if os.path.exists(os.path.join(test_data_path, "iris.csv")):
+            if (TEST_DATA_DIR / "iris.csv").exists():
                 available_datasets["Iris Dataset"] = {
                     "file": "iris.csv",
                     "description": "Классический датасет классификации ирисов (150 строк, 5 колонок)",
                     "target": "species"
                 }
 
-            if os.path.exists(os.path.join(test_data_path, "adult.csv")):
+            if (TEST_DATA_DIR / "adult.csv").exists():
                 available_datasets["Adult Income Dataset"] = {
                     "file": "adult.csv",
                     "description": "Датасет для предсказания уровня дохода (32561 строк, 15 колонок)",
@@ -413,7 +418,7 @@ if page == "📁 Управление датасетами":
                 }
 
             if not available_datasets:
-                st.error("❌ Готовые датасеты не найдены в папке test_data/")
+                st.error(f"❌ Готовые датасеты не найдены в папке {TEST_DATA_DIR}")
                 st.info("Убедитесь, что файлы iris.csv и adult.csv находятся в папке test_data/")
             else:
                 selected_dataset_name = st.selectbox(
@@ -427,7 +432,7 @@ if page == "📁 Управление датасетами":
                 st.info(f"ℹ️ {dataset_info['description']}")
 
                 # Загружаем и показываем preview
-                dataset_path = os.path.join(test_data_path, dataset_info['file'])
+                dataset_path = TEST_DATA_DIR / dataset_info['file']
                 df_preview = pd.read_csv(dataset_path)
 
                 st.write("**Предпросмотр данных (первые 5 строк):**")
@@ -870,7 +875,7 @@ elif page == "🔮 Получить предсказание":
                             # Используем новый метод с автоматическим кодированием
                             import io
                             csv_file = io.BytesIO(uploaded_csv_bytes)
-                            result = predict_from_csv(selected_model_id, selected_dataset, csv_file)
+                            result = predict_csv_from_dataset(selected_model_id, selected_dataset, csv_file)
                         else:
                             # Используем старый метод для числовых данных
                             result = predict(selected_model_id, pred_features)
