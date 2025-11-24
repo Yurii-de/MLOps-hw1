@@ -119,6 +119,35 @@ class MLServiceServicer:
         self.dataset_storage = DatasetStorage(storage_dir=str(BASE_DIR / "datasets"))
         logger.info("gRPC MLService initialized")
 
+    def _get_dataset_if_authorized(self, dataset_id: str, user: dict, context):
+        """Возвращает информацию о датасете, если пользователь имеет к нему доступ."""
+        try:
+            info = self.dataset_storage.get_dataset_info(dataset_id)
+        except FileNotFoundError as exc:
+            logger.error(f"gRPC: Dataset '{dataset_id}' not found")
+            context.set_code(grpc.StatusCode.NOT_FOUND)
+            context.set_details(str(exc))
+            return None
+        except Exception as exc:
+            logger.error(f"gRPC: Failed to load dataset '{dataset_id}': {exc}")
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(str(exc))
+            return None
+
+        owner = info.get("owner")
+        if owner and owner != user["username"]:
+            logger.warning(
+                "gRPC: User '%s' denied access to dataset '%s' owned by '%s'",
+                user["username"],
+                dataset_id,
+                owner,
+            )
+            context.set_code(grpc.StatusCode.PERMISSION_DENIED)
+            context.set_details("Access denied to this dataset")
+            return None
+
+        return info
+
     def Login(self, request, context):
         """
         Аутентификация пользователя.
@@ -540,8 +569,13 @@ class MLServiceServicer:
         logger.info(f"gRPC: UploadDataset called for target='{request.target_column}'")
 
         try:
-            import io
+            user = _get_user_from_metadata(context)
+            if not user:
+                context.set_code(grpc.StatusCode.UNAUTHENTICATED)
+                context.set_details("User not authenticated")
+                return ml_service_pb2.UploadDatasetResponse()
 
+            import io
             import pandas as pd
 
             # Читаем CSV из bytes
@@ -557,6 +591,7 @@ class MLServiceServicer:
                 df=df,
                 target_column=request.target_column,
                 preprocess_categorical=request.preprocess_categorical,
+                owner=None if request.make_shared else user["username"],
             )
 
             logger.info(f"Dataset '{dataset_id}' uploaded successfully")
@@ -568,6 +603,7 @@ class MLServiceServicer:
                 target_column=dataset_info["target_column"],
                 feature_columns=dataset_info["feature_columns"],
                 message=f"Dataset uploaded successfully with {dataset_info['rows']} rows",
+                owner=dataset_info.get("owner", "") or "",
             )
 
         except Exception as e:
@@ -590,12 +626,22 @@ class MLServiceServicer:
         logger.info("gRPC: ListDatasets called")
 
         try:
+            user = _get_user_from_metadata(context)
+            if not user:
+                context.set_code(grpc.StatusCode.UNAUTHENTICATED)
+                context.set_details("User not authenticated")
+                return ml_service_pb2.ListDatasetsResponse()
+
             dataset_ids = self.dataset_storage.list_datasets()
             datasets = []
 
             for dataset_id in dataset_ids:
                 try:
                     info = self.dataset_storage.get_dataset_info(dataset_id)
+
+                    owner = info.get("owner")
+                    if owner and owner != user['username']:
+                        continue
 
                     dataset_msg = ml_service_pb2.DatasetInfoResponse(
                         dataset_id=info["dataset_id"],
@@ -604,6 +650,7 @@ class MLServiceServicer:
                         target_column=info["target_column"],
                         feature_columns=info["feature_columns"],
                         created_at=info["created_at"],
+                        owner=owner or "",
                     )
                     datasets.append(dataset_msg)
                 except Exception as e:
@@ -632,7 +679,15 @@ class MLServiceServicer:
         logger.info(f"gRPC: GetDatasetInfo called for dataset_id='{request.dataset_id}'")
 
         try:
-            info = self.dataset_storage.get_dataset_info(request.dataset_id)
+            user = _get_user_from_metadata(context)
+            if not user:
+                context.set_code(grpc.StatusCode.UNAUTHENTICATED)
+                context.set_details("User not authenticated")
+                return ml_service_pb2.DatasetInfoResponse()
+
+            info = self._get_dataset_if_authorized(request.dataset_id, user, context)
+            if info is None:
+                return ml_service_pb2.DatasetInfoResponse()
 
             return ml_service_pb2.DatasetInfoResponse(
                 dataset_id=info["dataset_id"],
@@ -641,6 +696,7 @@ class MLServiceServicer:
                 target_column=info["target_column"],
                 feature_columns=info["feature_columns"],
                 created_at=info["created_at"],
+                owner=info.get("owner", "") or "",
             )
 
         except Exception as e:
@@ -666,6 +722,23 @@ class MLServiceServicer:
         )
 
         try:
+            user = _get_user_from_metadata(context)
+            if not user:
+                context.set_code(grpc.StatusCode.UNAUTHENTICATED)
+                context.set_details("User not authenticated")
+                return ml_service_pb2.TrainResponse()
+
+            dataset_info = self._get_dataset_if_authorized(request.dataset_id, user, context)
+            if dataset_info is None:
+                return ml_service_pb2.TrainResponse()
+
+            logger.debug(
+                "gRPC: User '%s' is training on dataset '%s' owned by '%s'",
+                user['username'],
+                dataset_info['dataset_id'],
+                dataset_info.get('owner'),
+            )
+
             # Загружаем данные из датасета
             train_features, target = self.dataset_storage.get_training_data(request.dataset_id)
 
@@ -688,6 +761,9 @@ class MLServiceServicer:
 
             # Обучаем модель
             metrics = model.train(train_features.tolist(), target.tolist())
+
+            # Фиксируем владельца модели
+            model.owner = user['username']
 
             # Сохраняем модель
             self.model_storage.save_model(model)

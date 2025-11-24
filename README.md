@@ -68,8 +68,7 @@ uv sync
 
 ```bash
 # 1. Клонировать репозиторий
-git clone https://github.com/Yurii-de/MLOps-hw1.git
-cd MLOps/hw1
+git clone https://github.com/Yurii-de/MLOps-hw1.git .
 
 # 2. Установить зависимости
 poetry install
