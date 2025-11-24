@@ -58,27 +58,6 @@ model_storage = ModelStorage()
 # Инициализация хранилища датасетов
 dataset_storage = DatasetStorage()
 
-
-def _get_dataset_if_authorized(dataset_id: str, current_user: dict) -> dict:
-    """Return dataset metadata if it belongs to the current user or is shared."""
-    try:
-        dataset_info = dataset_storage.get_dataset_info(dataset_id)
-    except FileNotFoundError as exc:
-        logger.error(f"Dataset '{dataset_id}' not found")
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except Exception as exc:  # pragma: no cover - defensive log for unexpected IO errors
-        logger.error(f"Error loading dataset '{dataset_id}': {exc}")
-        raise HTTPException(status_code=500, detail="Failed to load dataset metadata") from exc
-
-    owner = dataset_info.get("owner")
-    if owner and owner != current_user["username"]:
-        logger.warning(
-            "Access denied to dataset '%s' for user '%s'", dataset_id, current_user["username"]
-        )
-        raise HTTPException(status_code=403, detail="Access denied to this dataset")
-
-    return dataset_info
-
 # OAuth2 схема для токенов
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
@@ -443,11 +422,7 @@ async def predict_from_csv(
     Returns:
         Предсказания модели
     """
-    logger.info(
-        f"User '{current_user['username']}' CSV prediction for model '{model_id}' using dataset '{dataset_id}'"
-    )
-
-    dataset_info = _get_dataset_if_authorized(dataset_id, current_user)
+    logger.info(f"User '{current_user['username']}' CSV prediction for model '{model_id}' using dataset '{dataset_id}'")
 
     try:
         # Читаем CSV
@@ -476,9 +451,7 @@ async def predict_from_csv(
         predictions = model.predict(X_encoded)
         probabilities = model.predict_proba(X_encoded)
 
-        logger.info(
-            f"Predictions generated: {len(predictions)} samples (dataset owner: {dataset_info.get('owner')})"
-        )
+        logger.info(f"Predictions generated: {len(predictions)} samples")
 
         return PredictResponse(
             model_id=model_id,
@@ -523,23 +496,6 @@ async def retrain_model(model_id: str, request: TrainModelRequest, current_user:
             logger.error(f"Model '{model_id}' not found for retraining")
             raise HTTPException(status_code=404, detail=f"Model '{model_id}' not found")
 
-        # Проверяем права доступа
-        try:
-            existing_model = model_storage.load_model(model_id)
-        except FileNotFoundError as exc:
-            logger.error(f"Model '{model_id}' not found during load: {exc}")
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-
-        existing_owner = getattr(existing_model, "owner", None)
-        if existing_owner and existing_owner != current_user["username"]:
-            logger.warning(
-                "User '%s' attempted to retrain model '%s' owned by '%s'",
-                current_user["username"],
-                model_id,
-                existing_owner,
-            )
-            raise HTTPException(status_code=403, detail="Access denied to this model")
-
         # Создаем новую модель с теми же параметрами
         model = ModelFactory.create_model(
             model_type=request.model_type,
@@ -551,9 +507,6 @@ async def retrain_model(model_id: str, request: TrainModelRequest, current_user:
         metrics = model.train(
             train_features=request.train_data.features, target=request.train_data.labels
         )
-
-        # Сохраняем владельца (shared модель остается shared)
-        model.owner = existing_owner or current_user["username"]
 
         # Сохраняем модель (перезаписываем)
         model_storage.save_model(model)
@@ -597,18 +550,6 @@ async def delete_model(model_id: str, current_user: dict = Depends(get_current_u
     logger.info(f"User '{current_user['username']}' deleting model '{model_id}'")
 
     try:
-        model = model_storage.load_model(model_id)
-        owner = getattr(model, "owner", None)
-
-        if owner and owner != current_user["username"]:
-            logger.warning(
-                "User '%s' attempted to delete model '%s' owned by '%s'",
-                current_user["username"],
-                model_id,
-                owner,
-            )
-            raise HTTPException(status_code=403, detail="Access denied to this model")
-
         model_storage.delete_model(model_id)
         logger.info(f"Model '{model_id}' deleted successfully")
 
@@ -743,22 +684,10 @@ async def get_datasets(current_user: dict = Depends(get_current_user)):
     try:
         dataset_ids = dataset_storage.list_datasets()
         datasets_info = []
-        username = current_user["username"]
 
         for dataset_id in dataset_ids:
             try:
                 info = dataset_storage.get_dataset_info(dataset_id)
-                owner = info.get("owner")
-
-                if owner and owner != username:
-                    logger.debug(
-                        "Skipping dataset '%s' for user '%s' due to owner '%s'",
-                        dataset_id,
-                        username,
-                        owner,
-                    )
-                    continue
-
                 datasets_info.append(DatasetInfo(**info))
             except Exception as e:
                 logger.warning(f"Error loading dataset '{dataset_id}': {e}")
@@ -792,7 +721,7 @@ async def get_dataset(dataset_id: str, current_user: dict = Depends(get_current_
     logger.info(f"User '{current_user['username']}' fetching dataset '{dataset_id}'")
 
     try:
-        info = _get_dataset_if_authorized(dataset_id, current_user)
+        info = dataset_storage.get_dataset_info(dataset_id)
         return DatasetInfo(**info)
 
     except FileNotFoundError as e:
@@ -822,7 +751,6 @@ async def delete_dataset(dataset_id: str, current_user: dict = Depends(get_curre
     logger.info(f"User '{current_user['username']}' deleting dataset '{dataset_id}'")
 
     try:
-        _get_dataset_if_authorized(dataset_id, current_user)
         dataset_storage.delete_dataset(dataset_id)
         logger.info(f"Dataset '{dataset_id}' deleted successfully")
 
@@ -861,8 +789,6 @@ async def train_model_from_dataset(
     )
 
     try:
-        dataset_info = _get_dataset_if_authorized(request.dataset_id, current_user)
-
         # Загружаем данные из датасета
         train_features, target = dataset_storage.get_training_data(request.dataset_id)
 
@@ -884,10 +810,7 @@ async def train_model_from_dataset(
         # Сохраняем модель
         model_storage.save_model(model)
 
-        logger.info(
-            f"Model '{request.model_name}' trained successfully. Metrics: {metrics}. "
-            f"Dataset owner: {dataset_info.get('owner')}"
-        )
+        logger.info(f"Model '{request.model_name}' trained successfully. Metrics: {metrics}")
 
         return TrainModelResponse(
             model_id=request.model_name,
