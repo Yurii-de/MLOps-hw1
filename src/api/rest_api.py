@@ -260,7 +260,9 @@ async def get_trained_models(current_user: dict = Depends(get_current_user)):
         for model_id in model_ids:
             try:
                 info = model_storage.get_model_info(model_id)
-                models_info.append(ModelInfo(**info))
+                # Фильтруем модели по владельцу
+                if not info.get('owner') or info['owner'] == current_user['username']:
+                    models_info.append(ModelInfo(**info))
             except Exception as e:
                 logger.warning(f"Failed to get info for model '{model_id}': {e}")
                 continue
@@ -316,6 +318,9 @@ async def train_model(request: TrainModelRequest, current_user: dict = Depends(g
             train_features=request.train_data.features, target=request.train_data.labels
         )
 
+        # Устанавливаем владельца модели
+        model.owner = current_user['username']
+
         # Сохраняем модель
         model_storage.save_model(model)
 
@@ -362,6 +367,10 @@ async def predict(model_id: str, request: PredictRequest, current_user: dict = D
     try:
         # Загружаем модель
         model = model_storage.load_model(model_id)
+
+        # Проверяем доступ к модели
+        if model.owner and model.owner != current_user['username']:
+            raise HTTPException(status_code=403, detail="Access denied to this model")
 
         # Получаем предсказания
         predictions = model.predict(request.features)
