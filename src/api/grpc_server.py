@@ -20,12 +20,16 @@ except ImportError:
 
 from src import __version__
 from src.auth.jwt_handler import create_access_token, decode_access_token, verify_password
-from src.auth.user_manager import authenticate_user, get_user
 from src.logger import setup_logger
 from src.models.dataset_storage import DatasetStorage
 from src.models.model_manager import ModelFactory, ModelStorage
 
 logger = setup_logger()
+
+# Простая БД пользователей
+USERS_DB = {
+    "admin": {"username": "admin", "hashed_password": "$2b$12$AZe3X7DXDd9lljvdmL3gmeJ0pPqtW4pBcV8WqaqTg8J7.2uTMnHri"},  # admin
+}
 
 # Методы, не требующие аутентификации
 UNPROTECTED_METHODS = [
@@ -52,15 +56,9 @@ def _get_user_from_metadata(context):
 
     try:
         payload = decode_access_token(token)
-        username = payload.get("sub")
-        if username is None:
-            return None
-        user = get_user(username)
-        if user is None or user.get("disabled"):
-            return None
-        return user
+        return {"username": payload.get("sub")}
     except Exception as e:
-        logger.warning(f"Invalid token or user in gRPC: {e}")
+        logger.warning(f"Invalid token in gRPC: {e}")
         return None
 
 
@@ -89,19 +87,11 @@ class AuthInterceptor(grpc.ServerInterceptor):
             )
 
         try:
-            payload = decode_access_token(token)
-            username = payload.get("sub")
-            if username is None:
-                raise ValueError("Token missing subject")
-            user = get_user(username)
-            if user is None:
-                raise ValueError("User not found")
-            if user.get("disabled"):
-                raise ValueError("User is disabled")
+            decode_access_token(token)
             return continuation(handler_call_details)
         except Exception as e:
-            error_msg = f"Invalid token or user: {str(e)}"
-            logger.warning(f"gRPC: Invalid token or user for {method}: {e}")
+            error_msg = f"Invalid token: {str(e)}"
+            logger.warning(f"gRPC: Invalid token for {method}: {e}")
             return grpc.unary_unary_rpc_method_handler(
                 lambda request, context: context.abort(
                     grpc.StatusCode.UNAUTHENTICATED,
@@ -133,10 +123,17 @@ class MLServiceServicer:
         logger.info(f"gRPC: Login attempt for user '{request.username}'")
 
         try:
-            # Аутентифицируем пользователя
-            user = authenticate_user(request.username, request.password)
+            # Проверяем пользователя
+            user = USERS_DB.get(request.username)
             if not user:
-                logger.warning(f"gRPC: Invalid credentials for user '{request.username}'")
+                logger.warning(f"gRPC: User '{request.username}' not found")
+                context.set_code(grpc.StatusCode.UNAUTHENTICATED)
+                context.set_details("Invalid username or password")
+                return ml_service_pb2.LoginResponse()
+
+            # Проверяем пароль
+            if not verify_password(request.password, user["hashed_password"]):
+                logger.warning(f"gRPC: Invalid password for user '{request.username}'")
                 context.set_code(grpc.StatusCode.UNAUTHENTICATED)
                 context.set_details("Invalid username or password")
                 return ml_service_pb2.LoginResponse()
@@ -208,13 +205,6 @@ class MLServiceServicer:
         logger.info(f"gRPC: TrainModel called for '{request.model_name}'")
 
         try:
-            # Получаем пользователя
-            user = _get_user_from_metadata(context)
-            if not user:
-                context.set_code(grpc.StatusCode.UNAUTHENTICATED)
-                context.set_details("User not authenticated")
-                return ml_service_pb2.TrainResponse()
-
             # Проверяем существование модели
             if self.model_storage.model_exists(request.model_name):
                 context.set_code(grpc.StatusCode.ALREADY_EXISTS)
@@ -239,9 +229,6 @@ class MLServiceServicer:
 
             # Обучаем модель
             metrics = model.train(train_features=features, target=labels)
-
-            # Устанавливаем владельца модели
-            model.owner = user['username']
 
             # Сохраняем модель
             self.model_storage.save_model(model)
@@ -280,21 +267,8 @@ class MLServiceServicer:
         logger.info(f"gRPC: Predict called for model '{request.model_id}'")
 
         try:
-            # Получаем пользователя
-            user = _get_user_from_metadata(context)
-            if not user:
-                context.set_code(grpc.StatusCode.UNAUTHENTICATED)
-                context.set_details("User not authenticated")
-                return ml_service_pb2.PredictResponse()
-
             # Загружаем модель
             model = self.model_storage.load_model(request.model_id)
-
-            # Проверяем доступ к модели
-            if model.owner and model.owner != user['username']:
-                context.set_code(grpc.StatusCode.PERMISSION_DENIED)
-                context.set_details("Access denied to this model")
-                return ml_service_pb2.PredictResponse()
 
             # Подготавливаем данные
             features = [[val for val in row.values] for row in request.features]
@@ -341,24 +315,10 @@ class MLServiceServicer:
         logger.info(f"gRPC: RetrainModel called for '{request.model_id}'")
 
         try:
-            # Получаем пользователя
-            user = _get_user_from_metadata(context)
-            if not user:
-                context.set_code(grpc.StatusCode.UNAUTHENTICATED)
-                context.set_details("User not authenticated")
-                return ml_service_pb2.TrainResponse()
-
             # Проверяем существование модели
             if not self.model_storage.model_exists(request.model_id):
                 context.set_code(grpc.StatusCode.NOT_FOUND)
                 context.set_details(f"Model '{request.model_id}' not found")
-                return ml_service_pb2.TrainResponse()
-
-            # Загружаем существующую модель для проверки доступа
-            existing_model = self.model_storage.load_model(request.model_id)
-            if existing_model.owner and existing_model.owner != user['username']:
-                context.set_code(grpc.StatusCode.PERMISSION_DENIED)
-                context.set_details("Access denied to this model")
                 return ml_service_pb2.TrainResponse()
 
             # Парсим гиперпараметры
@@ -379,9 +339,6 @@ class MLServiceServicer:
 
             # Обучаем модель
             metrics = model.train(train_features=features, target=labels)
-
-            # Устанавливаем владельца модели
-            model.owner = user['username']
 
             # Сохраняем модель
             self.model_storage.save_model(model)
@@ -415,20 +372,6 @@ class MLServiceServicer:
         logger.info(f"gRPC: DeleteModel called for '{request.model_id}'")
 
         try:
-            # Получаем пользователя
-            user = _get_user_from_metadata(context)
-            if not user:
-                context.set_code(grpc.StatusCode.UNAUTHENTICATED)
-                context.set_details("User not authenticated")
-                return ml_service_pb2.DeleteResponse()
-
-            # Загружаем модель для проверки доступа
-            model = self.model_storage.load_model(request.model_id)
-            if model.owner and model.owner != user['username']:
-                context.set_code(grpc.StatusCode.PERMISSION_DENIED)
-                context.set_details("Access denied to this model")
-                return ml_service_pb2.DeleteResponse()
-
             self.model_storage.delete_model(request.model_id)
             logger.info(f"gRPC: Model '{request.model_id}' deleted successfully")
 
@@ -487,13 +430,6 @@ class MLServiceServicer:
         logger.info("gRPC: ListTrainedModels called")
 
         try:
-            # Получаем пользователя
-            user = _get_user_from_metadata(context)
-            if not user:
-                context.set_code(grpc.StatusCode.UNAUTHENTICATED)
-                context.set_details("User not authenticated")
-                return ml_service_pb2.TrainedModelsResponse()
-
             model_ids = self.model_storage.list_models()
             trained_models = []
 
@@ -501,17 +437,14 @@ class MLServiceServicer:
                 try:
                     info = self.model_storage.get_model_info(model_id)
 
-                    # Фильтруем модели по владельцу
-                    if not info.get('owner') or info['owner'] == user['username']:
-                        # Конвертируем гиперпараметры
-                        hyperparams = {k: json.dumps(v) for k, v in info["hyperparameters"].items()}
+                    # Конвертируем гиперпараметры
+                    hyperparams = {k: json.dumps(v) for k, v in info["hyperparameters"].items()}
 
-                        model_msg = ml_service_pb2.TrainedModelInfo(
-                            model_id=info["model_id"],
+                    model_msg = ml_service_pb2.TrainedModelInfo(
+                        model_id=info["model_id"],
                         model_type=info["model_type"],
                         created_at=info["created_at"],
                         hyperparameters=hyperparams,
-                        owner=info.get("owner", ""),
                     )
                     trained_models.append(model_msg)
                 except Exception as e:
