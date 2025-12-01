@@ -1,5 +1,6 @@
 """Конфигурация приложения."""
 
+import os
 from pathlib import Path
 
 # Базовая директория проекта (корень проекта)
@@ -24,6 +25,15 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30
 # Настройки API
 API_TITLE = "ML API Service"
 API_DESCRIPTION = "API для обучения и использования ML моделей"
+
+# Настройки MinIO/S3
+MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "http://localhost:9000")
+MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "minioadmin")
+MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "minioadmin")
+MINIO_BUCKET_NAME = os.getenv("MINIO_BUCKET_NAME", "ml-datasets")
+
+# Настройки MLFlow
+MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000")
 
 # Создание директорий при импорте
 MODELS_DIR.mkdir(parents=True, exist_ok=True)
