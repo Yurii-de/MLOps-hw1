@@ -11,6 +11,7 @@ import pandas as pd
 from sklearn.preprocessing import LabelEncoder
 
 from src.config import DATASETS_DIR
+from src.dvc_manager import dvc_manager
 from src.logger import setup_logger
 
 logger = setup_logger()
@@ -187,6 +188,14 @@ class DatasetStorage:
             with open(dataset_path, "wb") as f:
                 pickle.dump(dataset_info, f)
             logger.info(f"Dataset '{dataset_id}' saved to {dataset_path}")
+
+            # Добавляем в DVC и пушим в S3
+            if dvc_manager.add_file(dataset_path):
+                dvc_manager.push()
+                logger.info(f"Dataset '{dataset_id}' versioned with DVC and pushed to S3")
+            else:
+                logger.warning(f"Failed to version dataset '{dataset_id}' with DVC")
+
         except Exception as e:
             logger.error(f"Failed to save dataset '{dataset_id}': {e}")
             raise

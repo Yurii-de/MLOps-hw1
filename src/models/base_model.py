@@ -4,7 +4,17 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+import mlflow
 import numpy as np
+from sklearn.metrics import accuracy_score, classification_report
+
+from src.config import MLFLOW_TRACKING_URI
+from src.logger import setup_logger
+
+logger = setup_logger()
+
+# Настройка MLFlow
+mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
 
 
 class BaseMLModel(ABC):
@@ -79,14 +89,39 @@ class BaseMLModel(ABC):
         if len(train_array) != len(target_array):
             raise ValueError("Number of samples and labels must match")
 
-        self.model = self._create_model()
-        self.model.fit(train_array, target_array)
-        self.is_trained = True
+        # Начинаем MLFlow run
+        with mlflow.start_run(run_name=f"{self.__class__.__name__}_{self.model_id}"):
+            # Логируем гиперпараметры
+            mlflow.log_params(self.hyperparameters)
+            mlflow.log_param("model_type", self.__class__.__name__)
+            mlflow.log_param("model_id", self.model_id)
+            mlflow.log_param("created_at", self.created_at)
 
-        # Вычисляем базовые метрики
-        train_score = self.model.score(train_array, target_array)
+            # Логируем информацию о данных
+            mlflow.log_param("n_samples", len(train_array))
+            mlflow.log_param("n_features", train_array.shape[1])
 
-        return {"train_accuracy": float(train_score)}
+            self.model = self._create_model()
+            self.model.fit(train_array, target_array)
+            self.is_trained = True
+
+            # Вычисляем метрики
+            train_predictions = self.model.predict(train_array)
+            train_accuracy = accuracy_score(target_array, train_predictions)
+
+            # Логируем метрики
+            mlflow.log_metric("train_accuracy", train_accuracy)
+
+            # Логируем модель
+            mlflow.sklearn.log_model(self.model, "model")
+
+            # Логируем classification report как artifact
+            report = classification_report(target_array, train_predictions, output_dict=True)
+            mlflow.log_dict(report, "classification_report.json")
+
+            logger.info(f"Model {self.model_id} trained with accuracy: {train_accuracy:.4f}")
+
+            return {"train_accuracy": float(train_accuracy)}
 
     def predict(self, train_features: List[List[float]]) -> List[int]:
         """
