@@ -1,4 +1,4 @@
-# ML API Service - MLOps Homework 1
+# ML API Service - MLOps Homework 1-2
 
 Комплексный сервис машинного обучения с поддержкой REST API, gRPC и веб-интерфейса для обучения, управления и использования ML моделей.
 
@@ -51,7 +51,7 @@
 
 ### Требования
 - Python 3.9+
-- uv или Poetry
+- uv
 - Docker и Docker Compose
 
 ### Вариант 1: uv
@@ -112,21 +112,6 @@ docker-compose down
 docker-compose stop ml-api-service
 docker-compose stop mlflow
 docker-compose stop minio
-```
-
----
-
-### Вариант 3: Poetry
-
-```bash
-# 1. Клонировать репозиторий
-git clone https://github.com/Yurii-de/MLOps-hw1.git .
-
-# 2. Установить зависимости
-poetry install
-
-# 3. Активировать окружение
-poetry shell
 ```
 
 ---
