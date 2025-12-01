@@ -42,11 +42,25 @@ poetry.lock
 
 # Trained models and data (not source code)
 /models/
-*.pkl
+/datasets/*.pkl
+/datasets/*.csv
+/datasets/*.json
 *.joblib
 *.h5
 *.pt
 *.pth
+
+# DVC
+.dvc/tmp/
+.dvc/cache/
+
+# MLFlow
+mlruns/
+mlartifacts/
+
+# But keep DVC files
+!.dvc/
+!.dvcignore
 
 # Logs
 logs/

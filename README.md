@@ -6,7 +6,7 @@
 
 ## Состав группы
 
-- **Лю Юрий** - REST API, аутентификация JWT, финальная полировка
+- **Лю Юрий** - REST API, аутентификация JWT, dvc, s3, mlflow
 - **Ширшов Константин** - gRPC, Dashboard (Streamlit)
 
 ---
@@ -30,12 +30,20 @@
 - ✅ **Автоматическая обработка категориальных признаков**
 - ✅ **Сохранение энкодеров** для предсказаний
 - ✅ **Шаблонные датасеты** (Iris, Adult)
+- ✅ **Версионирование датасетов через DVC** в MinIO S3
+- ✅ **Хранение датасетов в MinIO S3**
 
 ### Веб-интерфейс
 - ✅ **Streamlit Dashboard** - удобный UI
 - ✅ **Управление датасетами** - загрузка, просмотр, удаление
 - ✅ **Обучение моделей** - визуальный интерфейс
 - ✅ **Предсказания** - через файлы
+
+### MLOps интеграции
+- ✅ **MinIO S3** - хранение данных и моделей
+- ✅ **DVC** - версионирование датасетов
+- ✅ **MLFlow** - трекинг экспериментов и моделей
+- ✅ **Docker** - контейнеризация сервиса
 
 ---
 
@@ -44,13 +52,13 @@
 ### Требования
 - Python 3.9+
 - uv или Poetry
+- Docker и Docker Compose
 
-### Вариант 1: uv (рекомендуется)
+### Вариант 1: uv
 
 ```bash
 # 1. Клонировать репозиторий
-git clone https://github.com/Yurii-de/MLOps-hw1.git
-cd MLOps/hw1
+git clone https://github.com/Yurii-de/MLOps-hw1.git .
 
 # 2. Создать виртуальное окружение
 uv venv
@@ -65,12 +73,54 @@ source .venv/bin/activate
 uv sync
 ```
 
-### Вариант 2: Poetry
+### Вариант 2: Docker (рекомендуется)
+
+```bash
+git clone https://github.com/Yurii-de/MLOps-hw1.git .
+
+# 1. Запустить MinIO (S3 хранилище)
+docker-compose up minio -d
+
+# 2. Запустить MLFlow (трекинг экспериментов)
+docker-compose up mlflow -d
+
+# 3. Собрать и запустить ML API сервис
+docker-compose up --build ml-api-service
+```
+
+### Или полный запуск всех сервисов сразу
+
+```bash
+docker-compose up --build
+```
+
+### Доступ к сервисам
+
+- **API**: http://localhost:8000
+- **API Docs (Swagger)**: http://localhost:8000/docs
+- **MLFlow UI**: http://localhost:5000
+- **MinIO Console**: http://localhost:9001 (логин: minioadmin / minioadmin)
+- **Streamlit Dashboard**: http://localhost:8501
+
+### Остановка docker
+
+```bash
+# Остановить все сервисы
+docker-compose down
+
+# Или остановить по отдельности
+docker-compose stop ml-api-service
+docker-compose stop mlflow
+docker-compose stop minio
+```
+
+---
+
+### Вариант 3: Poetry
 
 ```bash
 # 1. Клонировать репозиторий
-git clone https://github.com/Yurii-de/MLOps-hw1.git
-cd MLOps/hw1
+git clone https://github.com/Yurii-de/MLOps-hw1.git .
 
 # 2. Установить зависимости
 poetry install
