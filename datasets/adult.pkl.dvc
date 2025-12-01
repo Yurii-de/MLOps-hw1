@@ -1,0 +1,5 @@
+outs:
+- md5: 2551d38bbfcdd3209ac107b16ecadea8
+  size: 3777742
+  hash: md5
+  path: adult.pkl

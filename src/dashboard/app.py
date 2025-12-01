@@ -1,12 +1,11 @@
 """Streamlit дашборд для работы с ML API."""
 
+from pathlib import Path
 from typing import Dict
 
 import pandas as pd
 import requests
 import streamlit as st
-import os
-from pathlib import Path
 
 # Определяем пути
 CURRENT_DIR = Path(__file__).resolve().parent
@@ -167,7 +166,7 @@ def predict_csv_from_dataset(model_id: str, dataset_id: str, csv_file):
 
 def has_feature_encoders(dataset_id: str) -> bool:
     """Проверить, есть ли у датасета энкодеры признаков (не только таргета)."""
-    
+
     # Проверяем наличие папки с энкодерами
     encoders_dir = DATASETS_DIR / f"{dataset_id}_encoders"
 
