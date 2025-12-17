@@ -20,7 +20,6 @@ RUN uv sync --frozen --no-install-project
 
 # Copy source code
 COPY src/ ./src/
-COPY datasets/ ./datasets/
 COPY examples/ ./examples/
 COPY test_data/ ./test_data/
 

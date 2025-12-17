@@ -35,22 +35,12 @@ class S3Client:
         self.secret_key = secret_key
         self.bucket_name = bucket_name
 
-        # Убираем порт из endpoint для Minio клиента
-        if ":" in self.endpoint:
-            host, port = self.endpoint.split(":")
-            self.client = Minio(
-                f"{host}:{port}",
-                access_key=access_key,
-                secret_key=secret_key,
-                secure=False,  # Для локального MinIO
-            )
-        else:
-            self.client = Minio(
-                self.endpoint,
-                access_key=access_key,
-                secret_key=secret_key,
-                secure=False,
-            )
+        self.client = Minio(
+            self.endpoint,
+            access_key=access_key,
+            secret_key=secret_key,
+            secure=False,  # Для локального MinIO
+        )
 
         self._ensure_bucket_exists()
 
