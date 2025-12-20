@@ -8,7 +8,7 @@ build-push:
 	docker push $(IMAGE_NAME):$(TAG)
 
 test:
-	uv run pytest tests/
+	uv run pytest -v tests/
 
 lint:
 	uv run ruff check .
